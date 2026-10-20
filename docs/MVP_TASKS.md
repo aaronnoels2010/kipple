@@ -102,7 +102,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - `kipple-core` has **no I/O dependencies**, checked by a CI check that inspects the dependency tree.
     - `cargo-deny` is configured for licences (GPL-3.0 compatible) and advisories.
     - A clippy `disallowed-methods` list for file-mutating APIs is in place, with an allowlist for the executor and adapter modules.
-- [ ] **K-1.2 Tauri 2 app shell** · M
+- [x] **K-1.2 Tauri 2 app shell** · M
   - **Done when:**
     - React + TS + Vite run in Tauri.
     - Single-instance is enabled, and the minimum window size is 960 × 600.

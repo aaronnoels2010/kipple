@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # No debuginfo for CI builds: smaller caches, faster linking of the Tauri dependency tree.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
 concurrency:
   group: ci-${{ github.ref }}
   # Supersede outdated PR runs, but let every run on main finish.
@@ -37,6 +42,25 @@ jobs:
       - name: cargo-deny (licences, advisories, sources)
         uses: EmbarkStudios/cargo-deny-action@v2
 
+  frontend:
+    name: Frontend (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -C app typecheck
+      - name: Tests
+        run: pnpm -C app test
+      - name: Build
+        run: pnpm -C app build
+
   rust:
     name: Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -50,9 +74,17 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - name: WebKitGTK (Linux; enough to compile, see DEVELOPING.md for bundling)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev
       - name: Install pinned Rust toolchain (rust-toolchain.toml)
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Only main writes caches, so PR caches don't evict them (10 GB repo quota).
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Clippy (incl. forbidden file mutation / core I/O)
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests

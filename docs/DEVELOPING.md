@@ -101,7 +101,18 @@ These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before 
 | `pnpm check:spdx` | Checks that every source file has the `GPL-3.0-or-later` licence header |
 | `pnpm test:scripts` | Runs the tests for the repo scripts |
 
-The app itself (`pnpm tauri dev`) and the frontend tests (`pnpm test`) arrive with K-1.2.
+**The app and the frontend** (run `pnpm install` once in the repo root first):
+
+| Command | What it does |
+|---|---|
+| `pnpm -C app tauri dev` | Runs Kipple with hot reload (Vite on port 1420 + the Tauri shell) |
+| `pnpm -C app test` | Frontend tests (Vitest + Testing Library) |
+| `pnpm -C app typecheck` | TypeScript check |
+| `pnpm -C app tauri build` | Release build and installers for the current OS |
+
+The shell's security settings (CSP, empty capabilities, no file-system plugin, navigation guard) are pinned by tests in `app/src-tauri/tests/security_config.rs` and `src/navigation.rs`. Changing them needs an ADR change first ([ADR-0007](adr/0007-backend-trust-boundary.md)).
+
+⚠️ **`tauri dev` doesn't enforce the CSP on desktop** (it loads the Vite server directly). Before relying on a new asset type, font or style technique, check it in a release-mode build: `pnpm -C app tauri build --debug`. Runtime CSS-in-JS libraries that inject `<style>` tags won't work under `style-src 'self'`.
 
 **Need an exception to the forbidden APIs?** Only the Executor and the platform adapters it calls may change files. Put `#[allow(clippy::disallowed_methods)]` on that specific module with a comment saying why; reviewers check every one.
 

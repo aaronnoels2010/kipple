@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! Kipple's Tauri shell: windows, plugins and wiring. Holds no business logic (ARCHITECTURE §2).
+#![forbid(unsafe_code)]
+
+mod navigation;
+
+use navigation::{Decision, Platform};
+use tauri::webview::NewWindowResponse;
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
+
+const MAIN_WINDOW: &str = "main";
+
+pub fn run() {
+    tauri::Builder::default()
+        // Must be registered first: a second launch focuses the running instance instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            focus_main_window(app)
+        }))
+        // Its injected click handler would bypass `on_navigation` (and has no IPC permission
+        // anyway), so every link goes through the guard below instead.
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
+        .setup(|app| {
+            create_main_window(app.handle())?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("Kipple failed to start");
+}
+
+/// Built in code (not in tauri.conf.json) so the navigation guard is always attached.
+fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
+    let dev_url = tauri::is_dev()
+        .then(|| app.config().build.dev_url.clone())
+        .flatten();
+    let (nav_app, popup_app) = (app.clone(), app.clone());
+    WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
+        .title("Kipple")
+        .inner_size(1180.0, 740.0)
+        .min_inner_size(960.0, 600.0)
+        .on_navigation(move |url| {
+            match navigation::decide(url, dev_url.as_ref(), Platform::current()) {
+                Decision::Allow => true,
+                Decision::OpenExternally => {
+                    open_externally(&nav_app, url);
+                    false
+                }
+                Decision::Block => false,
+            }
+        })
+        // window.open / target="_blank": never a second webview (it would have no guard).
+        .on_new_window(move |url, _features| {
+            if navigation::decide(&url, None, Platform::current()) == Decision::OpenExternally {
+                open_externally(&popup_app, &url);
+            }
+            NewWindowResponse::Deny
+        })
+        .build()?;
+    Ok(())
+}
+
+fn open_externally(app: &AppHandle, url: &Url) {
+    // Best effort: if no default browser/mail app is registered, the click simply does nothing.
+    let _ = app.opener().open_url(url.as_str(), None::<&str>);
+}
+
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}

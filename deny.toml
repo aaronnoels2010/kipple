@@ -6,8 +6,12 @@
 all-features = true
 
 [advisories]
-# Known vulnerabilities fail by default (RustSec advisory database); also refuse yanked crates.
+# Known vulnerabilities always fail (RustSec advisory database); also refuse yanked crates.
 yanked = "deny"
+# "Unmaintained" notices fail only for crates Kipple depends on directly. Transitive ones come
+# from Tauri's Linux stack (gtk → proc-macro-error, zbus → zvariant/zbus_names, 2026-10) and
+# can only be fixed upstream; vulnerabilities in them still fail.
+unmaintained = "workspace"
 
 [licenses]
 confidence-threshold = 0.9
