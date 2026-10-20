@@ -59,12 +59,21 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
     app_info_for(&app.package_info().version.to_string())
 }
 
+/// The OS language (e.g. `nl-BE`), read natively: the webview's `navigator.language` doesn't
+/// always follow the OS (notably WKWebView without matching bundle localizations).
+#[tauri::command]
+#[specta::specta]
+pub fn get_locale() -> Option<String> {
+    sys_locale::get_locale()
+}
+
 /// The command list, shared by the invoke handler and the TypeScript export. Keep it in sync
 /// with `command_names.rs` (a test checks it).
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             app_info,
+            get_locale,
             crate::appearance::get_appearance,
             crate::appearance::set_theme_preference,
         ])

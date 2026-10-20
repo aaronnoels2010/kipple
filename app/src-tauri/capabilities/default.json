@@ -7,6 +7,7 @@
   ],
   "permissions": [
     "allow-app-info",
+    "allow-get-locale",
     "allow-get-appearance",
     "allow-set-theme-preference",
     "core:event:allow-listen",

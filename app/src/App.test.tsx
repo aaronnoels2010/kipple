@@ -9,6 +9,7 @@ import { resetAppearanceStore } from "./theme/useAppearance";
 const BACKEND: Record<string, unknown> = {
   app_info: { version: "1.2.3", os: "macos" },
   get_appearance: { preference: "system", effective: "light" },
+  get_locale: "en-US",
 };
 
 // Mocks Tauri's IPC layer, so the generated bindings (command names, arguments) are exercised too.

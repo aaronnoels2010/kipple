@@ -1,0 +1,5 @@
+{
+  "tray.open": "Open Kipple",
+  "tray.quit": "Quit Kipple",
+  "tray.filesTidied": "{count, plural, one {# file tidied} other {# files tidied}}"
+}

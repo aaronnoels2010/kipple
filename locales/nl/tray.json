@@ -1,0 +1,5 @@
+{
+  "tray.open": "Kipple openen",
+  "tray.quit": "Kipple afsluiten",
+  "tray.filesTidied": "{count, plural, one {# bestand opgeruimd} other {# bestanden opgeruimd}}"
+}

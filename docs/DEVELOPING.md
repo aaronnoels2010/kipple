@@ -111,6 +111,8 @@ These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before 
 | `pnpm -C app tauri build` | Release build and installers for the current OS |
 | `KIPPLE_UPDATE_BINDINGS=1 cargo test -p kipple-app bindings` | Regenerates the typed IPC bindings `app/src/bindings/index.ts` after changing a command or IPC type in `app/src-tauri/src/ipc.rs`. CI fails if they're stale |
 
+**Adding user-visible text:** add the key to `locales/en/*.json` and `locales/nl/*.json` (ICU MessageFormat, see [`locales/README.md`](../locales/README.md)); UI text goes in `app.json`, tray and notification text in `tray.json`. `pnpm -C app test` fails on missing or mismatched keys and placeholders, and on unused UI keys; the Rust build fails if a language misses a tray key. Rust code refers to tray keys through the generated `kipple_i18n_rs::key::*` constants, so a typo doesn't compile. Check the layout with the pseudo-locale: `VITE_KIPPLE_LOCALE=pseudo pnpm -C app tauri dev`.
+
 **Adding an IPC command:** write it in `ipc.rs` with `#[tauri::command] #[specta::specta]`, add it to `collect_commands!` and to `src/command_names.rs`, grant `allow-<command-name>` in `capabilities/default.json`, then regenerate the bindings. Tests fail if any of these disagree. Commands return data or `Coded { code, params }`, never display text (ADR-0004).
 
 The shell's security settings (CSP, only explicitly listed `allow-<command>` capabilities, no file-system plugin, navigation guard) are pinned by tests in `app/src-tauri/tests/security_config.rs` and `src/navigation.rs`. Changing them needs an ADR change first ([ADR-0007](adr/0007-backend-trust-boundary.md)).

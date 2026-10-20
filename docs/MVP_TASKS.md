@@ -123,13 +123,13 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Light / dark / system switching works, with the OS appearance coming from Rust and the user override saved in `config/settings.json`.
     - The `<Hen state>` SVG component exists.
   - **Refs:** DESIGN.md §3–5, §13.
-- [ ] **K-1.5 i18n plumbing** · M
+- [x] **K-1.5 i18n plumbing** · M
   - **Done when:**
     - `locales/{en,nl}` and react-intl (ICU) are wired up.
     - The OS locale comes from `sys-locale`.
     - A pseudo-locale exists.
     - A **CI check fails** on missing or unused keys.
-    - The `kipple-i18n-rs` build step generates the Rust mini-catalog (tray and notification keys tagged `"rust": true`, ICU4X plurals).
+    - The `kipple-i18n-rs` build step generates the Rust mini-catalog (tray and notification keys in `locales/<lang>/tray.json`, ICU4X plurals).
     - The `trash.name` key is platform-aware.
   - **Refs:** ADR-0004.
 - [ ] **K-1.6 App shell UI** · M

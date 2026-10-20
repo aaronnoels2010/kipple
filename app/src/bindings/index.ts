@@ -9,6 +9,11 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**
+	 *  The OS language (e.g. `nl-BE`), read natively: the webview's `navigator.language` doesn't
+	 *  always follow the OS (notably WKWebView without matching bundle localizations).
+	 */
+	getLocale: () => __TAURI_INVOKE<string | null>("get_locale"),
 	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
 	setThemePreference: (preference: ThemePreference) => typedError<Appearance, Coded>(__TAURI_INVOKE("set_theme_preference", { preference })),
 };

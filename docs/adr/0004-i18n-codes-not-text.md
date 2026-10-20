@@ -13,7 +13,7 @@ The first draft had a hidden webview format the tray and notification text. The 
 
 ## Decision
 - The Rust backend returns stable **codes + typed parameters** for everything shown inside the app window, e.g. `{ code: "installer_old", params: { days: 214, appInstalled: true } }`. The frontend renders them with **ICU MessageFormat** (`react-intl`) from `locales/{en,nl}/*.json`.
-- **Tray menu and OS notification strings** (a small set of about 30 keys, tagged `"rust": true` in the catalog) are compiled at build time into a **Rust mini-catalog** (`kipple-i18n-rs`), with plurals and numbers via ICU4X. The source is the same `locales/` files.
+- **Tray menu and OS notification strings** (a small set of about 30 keys, kept in their own `locales/<lang>/tray.json` namespace) are compiled at build time into a **Rust mini-catalog** (`kipple-i18n-rs`), with plurals via ICU4X. The source is the same `locales/` folder. These messages use a deliberately small ICU subset (text, `{name}`, `plural` with `#`); a test fails on anything else.
 - **While Kipple runs in the tray, the webview is destroyed**, and it is re-created when the window opens. The app keeps running by preventing exit when the last window closes.
 - **Strings outside the app runtime** (installer, right-click menu, desktop entries) are generated at build time from the same catalogs.
 - The OS locale is read in Rust (`sys-locale`) and passed to the frontend. Users can override it in settings.

@@ -1,0 +1,4 @@
+{
+  "common.files": "{count, plural, one {# bestand} other {# bestanden}}",
+  "trash.name": "{os, select, macos {Prullenmand} other {Prullenbak}}"
+}

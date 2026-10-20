@@ -5,6 +5,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { I18nProvider } from "./i18n/I18nProvider";
 
 // A saved Light/Dark override is already set by the window's initialization script. For
 // "System", guess from the webview until the backend reports the window's real theme.
@@ -15,6 +16,8 @@ if (!root) throw new Error("#root element missing from index.html");
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </StrictMode>,
 );

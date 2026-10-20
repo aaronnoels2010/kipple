@@ -1,0 +1,4 @@
+{
+  "common.files": "{count, plural, one {# file} other {# files}}",
+  "trash.name": "{os, select, windows {Recycle Bin} other {Trash}}"
+}
