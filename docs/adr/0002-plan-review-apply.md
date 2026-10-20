@@ -20,6 +20,8 @@ Kipple's promise is "safe by default": dry-run summaries, undo for every action,
 8. An **Apply policy** (max operations and bytes, ask or abort, `allow_permanent_delete=false` for rules) lets automatic rules pause on large runs.
 9. *(Added after spike S1.)* The Executor only uses **no-overwrite primitives** for Move, Rename and Restore (`renamex_np(RENAME_EXCL)` with an NSFileManager fallback, `renameat2(RENAME_NOREPLACE)`, `MoveFileExW` without replace). `std::fs::rename` is disallowed, because it silently overwrites an existing file.
 
+**Scope:** this ADR covers the user's files in managed locations. Kipple's own app data (settings.json, index.db, state.db, caches, logs) is written by its own stores (SQLite, the settings store), each with an explicit, commented `#[allow(clippy::disallowed_methods)]`.
+
 ## Consequences
 - The safety features are implemented once and tested with fault injection: a "crash" at operation N or sub-step N, and simulated power loss.
 - Planners stay pure and easy to test with TDD.

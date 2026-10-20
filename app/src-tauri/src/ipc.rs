@@ -15,6 +15,15 @@ pub struct Coded {
     pub params: BTreeMap<String, Param>,
 }
 
+impl Coded {
+    pub fn new(code: &str) -> Self {
+        Self {
+            code: code.to_string(),
+            params: BTreeMap::new(),
+        }
+    }
+}
+
 /// A parameter of a [`Coded`] message. Numbers are `f64` because specta refuses 64-bit
 /// integers (no BigInt over IPC); serde sends NaN/±Infinity as `null`, which is why the
 /// TypeScript type includes `null`. Only pass finite numbers.
@@ -54,7 +63,14 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
 /// with `command_names.rs` (a test checks it).
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .commands(tauri_specta::collect_commands![app_info])
+        .commands(tauri_specta::collect_commands![
+            app_info,
+            crate::appearance::get_appearance,
+            crate::appearance::set_theme_preference,
+        ])
+        .events(tauri_specta::collect_events![
+            crate::appearance::AppearanceChanged
+        ])
         .typ::<Coded>()
 }
 
@@ -76,15 +92,13 @@ mod tests {
             .expect("export TypeScript bindings");
     }
 
-    /// Exports to a temporary file and returns its content.
+    /// Exports into a fresh temporary folder (unique per call: tests run in parallel in one
+    /// process) and returns the content; the folder is removed when `dir` drops.
     fn fresh_bindings() -> String {
-        let path = std::env::temp_dir().join(format!("kipple-bindings-{}.ts", std::process::id()));
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bindings.ts");
         export(&path);
-        let content = std::fs::read_to_string(&path).unwrap();
-        // Test-only cleanup of our own temp file; ADR-0002's mutation ban is about user files.
-        #[allow(clippy::disallowed_methods)]
-        let _ = std::fs::remove_file(&path);
-        content
+        std::fs::read_to_string(&path).unwrap()
     }
 
     #[test]

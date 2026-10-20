@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // Tauri expects a fixed dev port (tauri.conf.json → build.devUrl).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   clearScreen: false,
   server: {
     port: 1420,

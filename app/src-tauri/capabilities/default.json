@@ -6,6 +6,10 @@
     "main"
   ],
   "permissions": [
-    "allow-app-info"
+    "allow-app-info",
+    "allow-get-appearance",
+    "allow-set-theme-preference",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

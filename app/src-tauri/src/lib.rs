@@ -2,20 +2,27 @@
 //! Kipple's Tauri shell: windows, plugins and wiring. Holds no business logic (ARCHITECTURE §2).
 #![forbid(unsafe_code)]
 
+mod appearance;
 mod ipc;
 mod navigation;
+mod settings;
 
+use appearance::AppearanceState;
 use navigation::{Decision, Platform};
+use settings::ThemePreference;
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_opener::OpenerExt;
 
 const MAIN_WINDOW: &str = "main";
 
 pub fn run() {
-    let commands = ipc::specta_builder();
+    let ipc = ipc::specta_builder();
+    let invoke_handler = ipc.invoke_handler();
     tauri::Builder::default()
-        .invoke_handler(commands.invoke_handler())
+        .invoke_handler(invoke_handler)
         // Must be registered first: a second launch focuses the running instance instead.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             focus_main_window(app)
@@ -27,8 +34,25 @@ pub fn run() {
                 .open_js_links_on_click(false)
                 .build(),
         )
-        .setup(|app| {
-            create_main_window(app.handle())?;
+        .setup(move |app| {
+            ipc.mount_events(app);
+            let settings_path = app
+                .path()
+                .app_config_dir()?
+                .join("config")
+                .join("settings.json");
+            app.manage(AppearanceState::load(settings_path));
+            let state = app.state::<AppearanceState>();
+
+            let window = create_main_window(app.handle(), state.preference())?;
+            appearance::init(&window, &state);
+            let (handle, observed) = (app.handle().clone(), window.clone());
+            window.on_window_event(move |event| {
+                if let WindowEvent::ThemeChanged(_) = event {
+                    let state = handle.state::<AppearanceState>();
+                    appearance::on_window_theme_changed(&handle, &observed, &state);
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -36,7 +60,7 @@ pub fn run() {
 }
 
 /// Built in code (not in tauri.conf.json) so the navigation guard is always attached.
-fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
+fn create_main_window(app: &AppHandle, theme: ThemePreference) -> tauri::Result<WebviewWindow> {
     let dev_url = tauri::is_dev()
         .then(|| app.config().build.dev_url.clone())
         .flatten();
@@ -45,6 +69,11 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         .title("Kipple")
         .inner_size(1180.0, 740.0)
         .min_inner_size(960.0, 600.0)
+        // Start in the saved theme: native chrome via `.theme`, the page via data-theme before
+        // any app script runs (no flash). "System" is resolved by the page until the backend
+        // reports the window's real theme.
+        .theme(appearance::forced_theme(theme))
+        .initialization_script(theme_bootstrap_script(theme))
         .on_navigation(move |url| {
             match navigation::decide(url, dev_url.as_ref(), Platform::current()) {
                 Decision::Allow => true,
@@ -62,8 +91,15 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
             }
             NewWindowResponse::Deny
         })
-        .build()?;
-    Ok(())
+        .build()
+}
+
+fn theme_bootstrap_script(theme: ThemePreference) -> String {
+    match theme {
+        ThemePreference::Light => "document.documentElement.dataset.theme = 'light';".into(),
+        ThemePreference::Dark => "document.documentElement.dataset.theme = 'dark';".into(),
+        ThemePreference::System => String::new(),
+    }
 }
 
 fn open_externally(app: &AppHandle, url: &Url) {

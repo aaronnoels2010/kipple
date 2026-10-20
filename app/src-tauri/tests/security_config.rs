@@ -111,10 +111,15 @@ fn exactly_one_capability_with_exactly_the_reviewed_permissions() {
     assert!(cap.get("remote").is_none(), "no IPC for remote origins");
     // Exactly Kipple's own commands, one by one. Never `core:default` (it exposes home/app-data
     // paths, menus and image loading) and never plugin permissions for fs/shell/opener/dialog.
-    let expected: Vec<String> = COMMAND_NAMES
+    let mut expected: Vec<String> = COMMAND_NAMES
         .iter()
         .map(|c| format!("allow-{}", c.replace('_', "-")))
         .collect();
+    // Typed events (tauri-specta) need exactly these two from core; nothing else.
+    expected.extend([
+        "core:event:allow-listen".into(),
+        "core:event:allow-unlisten".into(),
+    ]);
     assert_eq!(cap["permissions"], json!(expected));
 }
 

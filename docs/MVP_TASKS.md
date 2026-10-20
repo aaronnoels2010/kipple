@@ -115,7 +115,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - One command, `app.info`, works end-to-end.
     - CI fails if the generated bindings are stale.
     - A shared `Coded { code, params }` result type exists.
-- [ ] **K-1.4 Design tokens & theming** · M
+- [x] **K-1.4 Design tokens & theming** · M (the visible Light/Dark/System control is added with the shell/settings UI once i18n exists; the commands, event and hook are in place)
   - **Done when:**
     - `app/src/styles/tokens.css` matches `design.html`.
     - Tailwind v4 `@theme` mapping is set up.

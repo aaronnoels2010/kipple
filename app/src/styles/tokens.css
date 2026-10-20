@@ -1,0 +1,102 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Design tokens (docs/DESIGN.md §3). Values are extracted from docs/design.html, which is the
+   reviewed source: keep both in sync. Components never use raw colours, only these tokens
+   (through the Tailwind theme in app.css). The effective theme is set on <html data-theme>. */
+
+:root {
+  color-scheme: light;
+  --bg: #FBF7EE;
+  --surface: #FFFFFF;
+  --surface-2: #F3EDE0;
+  --surface-3: #EAE2D2;
+  --sidebar: #F5F0E4;
+  --border: #E3DACA;
+  --border-strong: #8F8574;
+  --text: #211C15;
+  --text-muted: #6A6052;
+  --text-faint: #9A907F;
+  --yolk: #F6B91A;
+  --yolk-hover: #E8A90A;
+  --yolk-soft: #FDF0C8;
+  --on-yolk: #211C15;
+  --yolk-ink: #8A5800;
+  --comb: #C2372B;
+  --comb-hover: #A82C21;
+  --comb-soft: #FBE3DF;
+  --on-comb: #FFFFFF;
+  --sage: #2C7A4B;
+  --sage-soft: #DFF0E5;
+  --amber: #955700;
+  --amber-soft: #FCEBD0;
+  --sky: #2F62C9;
+  --sky-soft: #E1EAFB;
+  --focus: #2F62C9;
+  --cat-image: #B04A8C;
+  --cat-video: #7A4FC0;
+  --cat-audio: #2A7F80;
+  --cat-doc: #2F62C9;
+  --cat-archive: #86662A;
+  --cat-installer: #B5561E;
+  --cat-code: #4D6A2C;
+  --cat-shot: #5B6676;
+  --hen: #FFF6E0;
+  --hen-line: #211C15;
+  --beak: #F08A1C;
+  --wing: #F6DFA4;
+  --hen-eye: #FFFFFF;
+  --inverse-accent: #F6B91A;
+  --inverse-ok: #62C48E;
+  --shadow-1: 0 1px 2px rgba(60,40,10,.07), 0 1px 1px rgba(60,40,10,.04);
+  --shadow-2: 0 8px 20px -8px rgba(60,40,10,.20), 0 2px 4px rgba(60,40,10,.06);
+  --shadow-3: 0 28px 56px -20px rgba(60,40,10,.32), 0 6px 14px rgba(60,40,10,.08);
+  --grain-opacity: .045;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14120E;
+  --surface: #1C1914;
+  --surface-2: #25211A;
+  --surface-3: #2E2920;
+  --sidebar: #181611;
+  --border: #332D24;
+  --border-strong: #7A705F;
+  --text: #F2ECDF;
+  --text-muted: #A69C8B;
+  --text-faint: #756C5E;
+  --yolk: #FFC53D;
+  --yolk-hover: #FFD166;
+  --yolk-soft: #3A2F12;
+  --on-yolk: #1A150C;
+  --yolk-ink: #FFC53D;
+  --comb: #FF7A6B;
+  --comb-hover: #FF9486;
+  --comb-soft: #3D1D19;
+  --on-comb: #14120E;
+  --sage: #62C48E;
+  --sage-soft: #16301F;
+  --amber: #F2A93B;
+  --amber-soft: #36270F;
+  --sky: #7FAEFF;
+  --sky-soft: #17243D;
+  --focus: #8DB6FF;
+  --cat-image: #E58BC4;
+  --cat-video: #B596F0;
+  --cat-audio: #6CC9C9;
+  --cat-doc: #7FAEFF;
+  --cat-archive: #D6B36A;
+  --cat-installer: #F09A5E;
+  --cat-code: #A6C77A;
+  --cat-shot: #A9B4C2;
+  --hen: #F2E6C9;
+  --hen-line: #1A150C;
+  --beak: #F59A33;
+  --wing: #DCC48C;
+  --hen-eye: #FFFFFF;
+  --inverse-accent: #8A5800;
+  --inverse-ok: #2C7A4B;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-2: 0 10px 24px -10px rgba(0,0,0,.65), 0 2px 4px rgba(0,0,0,.3);
+  --shadow-3: 0 30px 60px -20px rgba(0,0,0,.75), 0 6px 14px rgba(0,0,0,.4);
+  --grain-opacity: .06;
+}
