@@ -56,13 +56,26 @@ Generating the 1M tree took 99 s.
 
 *Warm cache:* the tree had just been written. A cold first scan needs `sudo purge` on macOS, so cold numbers come from the Linux CI run.
 
-### Linux / Windows (CI)
+### GitHub Actions runners (2026-10-20, [run 39439434545](https://github.com/aaronnoels2010/kipple/actions/runs/39439434545))
 
-*Pending: run the workflow and paste the job summaries here.*
+| OS (runner) | Mode | 100k first scan | 100k rescan | 1M first scan | 1M rescan | 1M peak RSS |
+|---|---|---|---|---|---|---|
+| Linux x86_64, 4 threads, **cold cache** | `lstat` | **0.65 s** | 0.24 s | **6.31 s** | 2.56 s | 316 MB |
+| Windows x86_64, 4 threads | `std` (no file ID) | 0.38 s | 0.24 s | 4.53 s | 3.21 s | 317 MB |
+| Windows | `handle` (per-file open) | 1.02 s | 0.94 s | 9.40 s | 9.73 s | 317 MB |
+| Windows | **`dirinfo`** (bulk per folder) | **0.31 s** | **0.22 s** | **3.36 s** | **3.38 s** | 316 MB |
+| macOS arm64 VM, 3 threads | `lstat` | 1.60 s | 0.84 s | 78.1 s | 38.3 s | 387 MB |
 
-## Findings so far
+Generating the trees took 2 s / 28 s on Linux, 8 s / 76 s on Windows and 10 s / 102 s on macOS.
 
-1. **Speed is fine on macOS:** about 100× faster than the target at 100k, and the 1M rescan stays under 5 s even at 10× the target size.
-2. **Memory in the rescan diff:** loading every known path into one in-memory `HashMap` costs **about 400 MB at 1M files**. The real scanner (K-2.6) should diff **per directory** instead. When the walker enters a folder, it loads only that folder's rows (`WHERE parent_path = ?`, already indexed in ARCHITECTURE §6.1) and compares them, which keeps memory flat regardless of tree size. Storing `parent_path` + `name` instead of full paths also shrinks the index.
-3. **The SQLite insert isn't a bottleneck:** batches of 5,000 rows in WAL mode keep up with the walker (first scan ≈ walk speed).
-4. The **Windows decision** (`handle` vs `dirinfo`) waits for the CI results.
+## Findings
+
+1. **The targets are met everywhere with a wide margin.** The worst 100k first scan is 1.6 s (target 60 s), and the worst 100k rescan is 0.94 s (target 5 s), on the slowest strategy.
+2. **Windows: use `FileIdBothDirectoryInfo` per directory (`dirinfo`).** It is the fastest strategy, faster even than the baseline that skips file IDs, and it delivers **file ID + ChangeTime + size + mtime in one bulk call per folder**. Opening every file for its ID (`handle`) is about 3× slower. The fallback is `std` + `handle` when the call isn't supported (some network shares). On FAT/ExFAT, where `FileId` isn't stable, fall back to the path as identity.
+3. **Memory in the rescan diff:** a whole-tree `HashMap` costs **about 320–400 MB at 1M files** on every OS. The real scanner (K-2.6) must diff **per directory** instead. When the walker enters a folder, it loads only that folder's rows (`WHERE parent_path = ?`) and compares them, so memory stays flat. Storing `parent_path` + `name` instead of full paths also shrinks the index.
+4. **The slow macOS VM:** 1M files took 78 s for the first scan and 38 s for a rescan on a 3-core CI VM with limited RAM, so the metadata no longer fitted in the cache. That's still acceptable for a *first* scan with progress UI, but frequent **full rescans of 1M-file trees are too slow on modest Macs**. For v1 watch mode, persist the **FSEvents event ID** (macOS) and the **NTFS USN journal position** (Windows), so a restart only replays changes instead of rescanning. Linux keeps periodic rescans, which are fast there.
+5. **NTFS stale metadata (likely):** in the Windows `std` run, directly after generating the tree, an "unchanged" rescan reported 135 (100k) / 1,716 (1M) *changed* files. The likely cause is that NTFS updates directory-entry metadata lazily, so enumeration can briefly show old size/mtime for recently written files. Consequences:
+   - false "changed" results are harmless (re-hash);
+   - a briefly *missed* change is covered by the Validator **re-stat-ing every item at apply time** (ARCHITECTURE §7.2);
+   - **duplicates are re-hashed before trashing.**
+6. **The SQLite insert isn't a bottleneck:** batches of 5,000 rows in WAL mode keep up with the walker on every OS.

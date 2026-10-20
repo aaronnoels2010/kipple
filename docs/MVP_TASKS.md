@@ -84,7 +84,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - A prototype using `objc2` calls `trashItemAtURL:resultingItemURL:` and records the resulting URL.
     - Restoring the file works **without Full Disk Access**.
     - The behaviour on external and network volumes is documented.
-- [ ] **K-0.5 Spike S4: scan performance** · M
+- [x] **K-0.5 Spike S4: scan performance** · M ([result](../spikes/s4-scan-perf/README.md))
   - **Done when:**
     - There is a **synthetic tree generator** (100k and 1M files, realistic depth and names).
     - The `ignore` walker plus metadata collection (including file IDs) has been benchmarked on macOS, Windows (NTFS) and Linux (ext4).
@@ -196,7 +196,9 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
   - **Done when:**
     - The parallel `ignore` walker runs with `standard_filters(false)`.
     - It respects exclusions, protected paths and opaque bundles/VCS dirs.
-    - It diffs on `(size, mtime, ctime, file_id)` and clears hashes when an item changes.
+    - It diffs on `(size, mtime, ctime, file_id)` **per directory** (loading only `WHERE parent_path = ?`, never the whole location: S4 measured about 400 MB at 1M files otherwise), and clears hashes when an item changes.
+    - **Windows:** enumerates with `FileIdBothDirectoryInfo` (falling back to std + per-file handle) and uses the path as identity on FAT/ExFAT.
+    - Memory stays flat during a rescan: a test at 1M files keeps peak RSS below 150 MB.
     - Placeholders are only `stat`-ed.
     - `._*` AppleDouble companion files (created by macOS on FAT/ExFAT, spike S1) are marked as OS metadata: hidden from counts, and a folder holding only `._*` files counts as empty.
     - Commands: `scan.start | pause | resume | cancel | status`.

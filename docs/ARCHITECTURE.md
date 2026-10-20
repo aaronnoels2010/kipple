@@ -256,8 +256,8 @@ sequenceDiagram
 1. **Online check first.** Each location stores its `volume_id`. If the volume is missing or different (an unmounted Linux mountpoint is an empty dir, a disconnected NAS, an ejected USB drive), the location is marked **offline**. Its items are kept and its candidates hidden. **Missing files on an offline location are never treated as deleted**, and an empty mountpoint is never an "empty folder" candidate.
 2. **Walk** in parallel, with `standard_filters(false)`. Exclusions and protected paths are skipped.
    - **Bundles** (`.app`, `.photoslibrary`, …) and **VCS dirs** (`.git`, `.svn`, `.hg`) are opaque items and are never descended into.
-   - **Windows:** std metadata opens a handle per file to get the file ID. If S4 shows that's too slow, use `FindFirstFileExW` / `GetFileInformationByHandleEx(FileIdBothDirectoryInfo)` for directory-level enumeration with IDs.
-3. **Diff** on `(size, mtime, ctime, file_id)`. Adding ctime catches tools that preserve mtime but change content (`rsync -t`, archive extraction). When an item changes, its hashes are cleared.
+   - **Windows:** enumerate each folder with **`GetFileInformationByHandleEx(FileIdBothDirectoryInfo)`**. It returns file ID, ChangeTime, size and mtime in one bulk call per folder, and in spike S4 it was the fastest strategy (1M files in 3.4 s, versus 9.4 s when opening every file). Fall back to std enumeration + a per-file handle when the call isn't supported (some network shares). On FAT/ExFAT the path is the identity. ✅ Decided in S4 ([report](../spikes/s4-scan-perf/README.md)).
+3. **Diff per directory** on `(size, mtime, ctime, file_id)`. When the walker enters a folder, it loads only that folder's index rows (`WHERE parent_path = ?`) and compares them. **Never load the whole location into memory:** a whole-tree map costs about 320–400 MB at 1M files (S4). Adding ctime catches tools that preserve mtime but change content (`rsync -t`, archive extraction). When an item changes, its hashes are cleared. NTFS may report directory-entry metadata a little late, which is covered by the Validator re-stat-ing every item at apply time.
 4. **Classify** by extension. Use `infer` for unknown or ambiguous extensions. **Placeholders are only `stat`-ed, never opened.**
 5. **Enrich** in the background (low priority, batched): last-used, download origin, EXIF/dimensions, and the **screenshot flag**. Screenshot file names are localised ("Schermafbeelding…"), so the flag isn't based on names alone:
    - **macOS:** `kMDItemIsScreenCapture`.
@@ -268,7 +268,7 @@ sequenceDiagram
 
 **Concurrency limits** depend on the kind of volume (SSD high, HDD/network low).
 **Scan pause/resume/cancel** uses cooperative cancellation tokens at directory granularity.
-**Watching (v1):** debounced `notify`, plus a rescan on overflow, plus a periodic fallback. inotify needs **one watch per directory**, so S6 measures the directory count.
+**Watching (v1):** debounced `notify`, plus a rescan on overflow, plus a periodic fallback. inotify needs **one watch per directory**, so S6 measures the directory count. To avoid full rescans of very large trees after a restart, persist the **FSEvents event ID** (macOS) and the **NTFS USN journal position** (Windows) and replay only the changes since then. S4 measured a full 1M-file rescan at 38 s on a modest Mac VM. Linux keeps periodic rescans, which took 2.6 s for 1M files in S4.
 
 ### 7.2 Plan → Review → Apply (the only way files change)
 
@@ -538,7 +538,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
 | S1 | ✅ **Done.** **macOS Trash undo** needs `resultingItemURL`, and `~/.Trash` is TCC-protected | Result: trash + restore work without Full Disk Access on internal disks, APFS, Mac OS Extended, ExFAT and FAT32 ([report](../spikes/s1-macos-trash/README.md)). Home "Trash size" needs Full Disk Access | Undo unavailable for that entry, with a clear message; never scan `~/.Trash` |
 | S2 | **Unsigned macOS UX + TCC persistence** across updates | Clean Mac: download → first launch → grant folders → auto-update → check whether grants survive (ad-hoc vs self-signed certificate) | Install guide; re-grant prompt after updates |
 | S3 | **Last-used signals** are slow (Spotlight) or incomplete (Windows Recent) | Benchmark batched Spotlight lookups on 100k files | Optional enrichment; max(mtime, atime, Kipple opens) |
-| S4 | **Scan performance** at 1M files, especially metadata/file IDs on Windows | `kipple-cli bench` + synthetic tree generator early | Windows directory-level enumeration APIs; tune batch sizes; defer enrichment |
+| S4 | ✅ **Done.** **Scan performance** at 1M files, especially metadata/file IDs on Windows | Result: 100k first scan ≤ 1.6 s and rescan ≤ 0.94 s on every OS (targets 60 s / 5 s). Windows uses `FileIdBothDirectoryInfo`. Rescan diff per directory, for memory ([report](../spikes/s4-scan-perf/README.md)) | FSEvents / USN replay for huge trees (v1) |
 | S5 | **WebKitGTK media codecs** | H.264/HEVC playback on Ubuntu and Fedora | "Open in default app" |
 | S6 | **inotify limits** (one watch per directory) | Count directories on large real trees | Periodic rescan |
 | S7 | **Shell integration while unsigned** | v1 spike | Services menu (macOS), classic menu (Windows) |
