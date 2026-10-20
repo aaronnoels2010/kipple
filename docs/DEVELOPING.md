@@ -82,6 +82,10 @@ pnpm --version         # 11.1.2
 
 If `clippy` or `rustfmt` is reported as "not installed", run `rustup toolchain install` in the repo root (it installs the components listed in `rust-toolchain.toml`), or `rustup component add clippy rustfmt`.
 
+### macOS gotcha: a non-Apple `xattr` in your PATH
+
+If `tauri build` fails with `failed to remove extra attributes from app bundle: failed to run xattr`, a Python `xattr` (pyenv, conda, pip) is shadowing Apple's `/usr/bin/xattr`. Check with `which -a xattr`, and make sure `/usr/bin` comes first when building, e.g. `PATH="/usr/bin:$PATH" pnpm tauri build`.
+
 ## Commands available today
 
 The app skeleton arrives with task K-1.x ([MVP_TASKS.md](MVP_TASKS.md)). Until then:

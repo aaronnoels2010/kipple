@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kipple · TCC spike</title>
+<style>
+  :root { color-scheme: light dark; --bg:#FBF7EE; --surface:#fff; --text:#211C15; --muted:#6A6052; --yolk:#F6B91A; --sage:#2C7A4B; --comb:#C2372B; --border:#E3DACA; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14120E; --surface:#1C1914; --text:#F2ECDF; --muted:#A69C8B; --yolk:#FFC53D; --sage:#62C48E; --comb:#FF7A6B; --border:#332D24; } }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif; }
+  h1 { font: 650 22px/1.2 Georgia, serif; margin:0 0 4px; }
+  .ver { display:inline-block; font:600 28px ui-monospace, monospace; background:var(--yolk); color:#211C15; padding:2px 12px; border-radius:10px; margin:8px 0; }
+  .meta { font: 11.5px ui-monospace, monospace; color:var(--muted); word-break:break-all; }
+  .row { display:flex; gap:8px; margin:18px 0 10px; }
+  button { font:600 13.5px system-ui; padding:8px 14px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { padding:8px 12px; border:1px solid var(--border); border-radius:10px; margin-top:6px; background:var(--surface); }
+  .ok { color:var(--sage); font-weight:650; } .err { color:var(--comb); font-weight:650; }
+  .hint { color:var(--muted); font-size:12.5px; margin-top:16px; }
+</style>
+</head>
+<body>
+  <h1>Kipple TCC spike</h1>
+  <div>Running version</div>
+  <div class="ver" id="ver">…</div>
+  <div class="meta" id="meta"></div>
+  <div class="row">
+    <button data-folder="Desktop">Read Desktop</button>
+    <button data-folder="Documents">Read Documents</button>
+    <button data-folder="Downloads">Read Downloads</button>
+  </div>
+  <ul id="log"></ul>
+  <p class="hint">Click <b>Read Desktop</b>. Note whether macOS asks for permission, and whether the result is ✅ or ❌. See README.md for the full checklist.</p>
+  <script src="main.js"></script>
+</body>
+</html>
