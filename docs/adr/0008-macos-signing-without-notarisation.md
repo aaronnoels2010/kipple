@@ -43,4 +43,4 @@ This matches the DR evidence exactly. Ad-hoc signing makes every update look lik
   - Release builds are only produced by the public CI workflow.
   - A key compromise is handled like an incident: new certificate, a release note explaining the one-time re-grant, and a SECURITY advisory.
 - ⚠️ This doesn't help with Gatekeeper. First launch still needs "Open Anyway" (covered by the install guide, K-1.10).
-- **Open for K-1.9:** check whether Tauri's bundler can sign with an *untrusted* identity from a CI keychain (`APPLE_CERTIFICATE` + `signingIdentity`), so the updater `.app.tar.gz` carries the right signature. If it can't, use a post-bundle re-sign step that also regenerates the updater artifact.
+- ✅ **Resolved in K-1.9:** Tauri's own `APPLE_CERTIFICATE` import only recognises Apple-issued certificate names, so `release.yml` imports the self-signed certificate into a temporary keychain itself and Tauri signs with `APPLE_SIGNING_IDENTITY` by name. The `.app`, the `.dmg` contents and the updater `.app.tar.gz` all carry *Kipple Release Signing* (verified on the `v0.0.1-1` test release). No re-sign step is needed.

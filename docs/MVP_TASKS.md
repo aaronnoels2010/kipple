@@ -147,7 +147,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Unit tests prove that no raw path reaches the log file.
 - [x] **K-1.8 CI pipeline** · M
   - **Done when:** `ci.yml` runs clippy, Rust tests (including the bindings and Rust catalog checks) and the frontend tests and build (including the i18n checks) on **macOS, Windows and Ubuntu**, and the OS-independent checks once: fmt, the licence checks (`cargo-deny` + npm) and the SPDX check.
-- [ ] **K-1.9 Release pipeline** · M
+- [x] **K-1.9 Release pipeline** · M
   - **Done when:** a tag triggers `tauri-action`, which builds:
     - **Windows:** an NSIS installer (`currentUser`), an MSI, and a portable exe with a `portable` marker file.
     - **macOS:** a universal `.dmg`, signed using the result of K-0.3.
@@ -155,11 +155,13 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
 
     It also generates SHA-256 checksums and GitHub provenance attestations, and creates a draft release. The update key is generated, stored as a CI secret and backed up offline. Producing `latest.json` is ready for v1.
   - **Depends on:** K-0.3.
-- [ ] **K-1.10 Install guide** · S
+- [x] **K-1.10 Install guide** · S
   - **Done when:** `docs/INSTALL.md` (EN and NL) covers first launch on each OS (Open Anyway on macOS, More info → Run anyway on Windows, chmod for the AppImage) and how to verify the checksums.
 - [ ] **K-1.11 Spike S8: idle memory with the webview destroyed** · S
   - **Done when:** tray-only memory has been measured with the webview destroyed vs hidden on all three OSes, ADR-0004 is confirmed or adjusted, and the tray menu runs from the Rust catalog.
 
+- [ ] **K-1.12 Portable mode** · S
+  - **Done when:** with a `portable` file next to the executable (the Windows portable zip ships one), Kipple keeps its config, data, cache and logs in a `KippleData` folder beside it instead of the per-user app folders, and never offers to update itself. Found while building K-1.9: the release already ships the marker, but the app doesn't read it yet.
 ---
 
 ## Slice 2: Locations, scan & browse (→ M2)
