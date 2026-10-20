@@ -117,6 +117,8 @@ These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before 
 
 The shell's security settings (CSP, only explicitly listed `allow-<command>` capabilities, no file-system plugin, navigation guard) are pinned by tests in `app/src-tauri/tests/security_config.rs` and `src/navigation.rs`. Changing them needs an ADR change first ([ADR-0007](adr/0007-backend-trust-boundary.md)).
 
+**Runtime `<style>` tags** (Radix's scroll lock for dialogs and menus) get Tauri's per-load CSP nonce through the empty `<style>` in `app/index.html` and `src/styleNonce.ts`, so `style-src` stays `'self'`. Don't remove that tag.
+
 ⚠️ **`tauri dev` doesn't enforce the CSP on desktop** (it loads the Vite server directly). Before relying on a new asset type, font or style technique, check it in a release-mode build: `pnpm -C app tauri build --debug`. Runtime CSS-in-JS libraries that inject `<style>` tags won't work under `style-src 'self'`.
 
 **Need an exception to the forbidden APIs?** Only the Executor and the platform adapters it calls may change files. Put `#[allow(clippy::disallowed_methods)]` on that specific module with a comment saying why; reviewers check every one.

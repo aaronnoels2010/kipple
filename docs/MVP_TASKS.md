@@ -132,7 +132,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - The `kipple-i18n-rs` build step generates the Rust mini-catalog (tray and notification keys in `locales/<lang>/tray.json`, ICU4X plurals).
     - The `trash.name` key is platform-aware.
   - **Refs:** ADR-0004.
-- [ ] **K-1.6 App shell UI** · M
+- [x] **K-1.6 App shell UI** · M
   - **Done when:**
     - Sidebar, top bar and routing work, with empty screens for Overview, Browse, Cleanup, Rename, Tidy, History and Settings.
     - The keyboard map and cheat-sheet (`?`) work.

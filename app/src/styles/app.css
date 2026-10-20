@@ -63,6 +63,12 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-xl: 22px;
+  --radius-egg: 50% 50% 46% 46% / 58% 58% 42% 42%; /* brand moments only */
+}
+
+/* Fraunces' soft, slightly wonky cut: the wordmark and display headings (DESIGN.md §4). */
+@utility font-soft {
+  font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
 /* Elevation tokens differ per theme, so they stay runtime variables (not theme values). */

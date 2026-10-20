@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { IntlProvider } from "react-intl";
 
 import { commands } from "../bindings";
@@ -31,7 +31,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const locale = PSEUDO ? SOURCE_LOCALE : osLocale;
-  useEffect(() => {
+  // In the same commit as the text, so `lang` never disagrees with what's on screen.
+  useLayoutEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 

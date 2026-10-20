@@ -1,32 +1,70 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// "kipple" is the brand wordmark and "v1.2.3" a version number: neither is translatable text.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FormattedMessage } from "react-intl";
 
-import { commands } from "./bindings";
-import { Hen } from "./components/Hen";
+import { EmptyState } from "./components/EmptyState";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import { CheatSheet } from "./shell/CheatSheet";
+import { section, type SectionId } from "./shell/sections";
+import { Sidebar } from "./shell/Sidebar";
+import { TopBar } from "./shell/TopBar";
+import { useShortcuts } from "./shell/useShortcuts";
 import { useAppearance } from "./theme/useAppearance";
+
+interface Navigation {
+  section: SectionId;
+  /** Keyboard navigation moves focus to the new page title, so screen readers announce it. */
+  focusTitle: boolean;
+}
 
 export default function App() {
   useAppearance();
-  const [version, setVersion] = useState<string>();
+  const [nav, setNav] = useState<Navigation>({ section: "overview", focusTitle: false });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    let mounted = true;
-    commands
-      .appInfo()
-      .then((info) => mounted && setVersion(info.version))
-      // Outside Tauri (plain `vite dev` in a browser) there is no backend: show no version.
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (nav.focusTitle) titleRef.current?.focus();
+  }, [nav]);
 
+  const goTo = useCallback((id: SectionId) => setNav({ section: id, focusTitle: true }), []);
+  useShortcuts({
+    onSection: goTo,
+    onSearch: useCallback(() => searchRef.current?.focus(), []),
+    onHelp: useCallback(() => setHelpOpen((open) => !open), []),
+    paused: helpOpen,
+  });
+
+  const { label, empty } = section(nav.section);
   return (
-    <main className="grid min-h-screen place-content-center justify-items-center gap-3 bg-bg text-text">
-      <Hen state="idle" className="size-28" />
-      <h1 className="font-display text-5xl font-bold tracking-tight">kipple</h1>
-      {version && <p className="font-mono text-xs text-muted">v{version}</p>}
-    </main>
+    <div className="grid h-screen grid-cols-[228px_1fr] bg-bg text-text">
+      <Sidebar current={nav.section} onSelect={(id) => setNav({ section: id, focusTitle: false })} />
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <TopBar searchRef={searchRef} onHistory={() => goTo("history")} />
+        <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-6 py-[22px]">
+          {/* Not interactive, so no focus ring: it's only focused to be announced. */}
+          <h1
+            ref={titleRef}
+            tabIndex={-1}
+            className="font-display text-[28px] leading-tight font-semibold tracking-[-0.02em] font-soft outline-none"
+          >
+            <FormattedMessage id={label} />
+          </h1>
+          {empty ? (
+            <div className="grid flex-1 place-content-center">
+              <EmptyState
+                hen={empty.hen}
+                title={<FormattedMessage id={empty.title} />}
+                body={<FormattedMessage id={empty.body} />}
+              />
+            </div>
+          ) : (
+            <SettingsScreen />
+          )}
+        </main>
+      </div>
+      <CheatSheet open={helpOpen} onOpenChange={setHelpOpen} />
+    </div>
   );
 }

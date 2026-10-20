@@ -6,6 +6,9 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import { I18nProvider } from "./i18n/I18nProvider";
+import { adoptStyleNonce } from "./styleNonce";
+
+adoptStyleNonce(document);
 
 // A saved Light/Dark override is already set by the window's initialization script. For
 // "System", guess from the webview until the backend reports the window's real theme.
