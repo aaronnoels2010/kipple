@@ -123,6 +123,9 @@ kipple/
 │  ├─ kipple-preview/          # thumbnails, metadata extraction, text/archive readers
 │  ├─ kipple-i18n-rs/          # build-time generated Rust catalog for tray/notification strings
 │  └─ kipple-cli/              # headless harness: scan/plan/apply/bench/fault-inject
+├─ xtask/                      # repo tooling: `cargo xtask layering | clippy-config`
+├─ clippy.toml                 # forbidden file-mutating APIs (crates/kipple-core/clippy.toml adds all I/O)
+├─ deny.toml                   # cargo-deny: GPL-compatible licences, advisories, sources
 ├─ app/
 │  ├─ src-tauri/               # shell: commands, preview scheme, tray, updater, windows, capabilities
 │  └─ src/                     # React UI

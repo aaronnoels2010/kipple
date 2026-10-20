@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+exclude = ["spikes"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/aaronnoels2010/kipple"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+# ADR-0002: only the Executor (and the adapters it calls) may mutate files. See clippy.toml.
+disallowed_methods = "deny"
+disallowed_types = "deny"
+undocumented_unsafe_blocks = "deny"
+dbg_macro = "warn"
+todo = "warn"

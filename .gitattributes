@@ -1,0 +1,7 @@
+# Keep LF line endings in the repository on every OS (Windows checkouts included).
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.icns binary
+*.ico binary
+*.woff2 binary

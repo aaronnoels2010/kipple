@@ -96,7 +96,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
 
 ## Slice 1: Skeleton (→ M1)
 
-- [ ] **K-1.1 Cargo workspace & crate boundaries** · S
+- [x] **K-1.1 Cargo workspace & crate boundaries** · S (`app/src-tauri` joins the workspace in K-1.2; its layering rule is already in place as `kipple-app`)
   - **Done when:**
     - The workspace contains `kipple-core`, `-index`, `-engine`, `-platform`, `-preview`, `-i18n-rs` and `-cli`, plus `app/src-tauri`.
     - `kipple-core` has **no I/O dependencies**, checked by a CI check that inspects the dependency tree.

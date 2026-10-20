@@ -1,0 +1,46 @@
+# cargo-deny configuration: `cargo deny check`. Runs in CI on every push and PR.
+# Kipple is GPL-3.0-or-later, so every dependency must have a GPL-3.0-compatible licence
+# (CONTRIBUTING.md → Licence headers).
+
+[graph]
+all-features = true
+
+[advisories]
+# Known vulnerabilities fail by default (RustSec advisory database); also refuse yanked crates.
+yanked = "deny"
+
+[licenses]
+confidence-threshold = 0.9
+unused-allowed-license = "allow"
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "BSL-1.0",
+  "CC0-1.0",
+  "Unlicense",
+  "Unicode-3.0",
+  "MPL-2.0",
+  "LGPL-2.1-or-later",
+  "LGPL-3.0-or-later",
+  "GPL-3.0-or-later",
+  "GPL-3.0-only",
+]
+# Explicitly NOT allowed: GPL-2.0-only (incompatible with GPL-3.0), proprietary and
+# "non-commercial" licences. Anything not on the list above fails the check.
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+# Only crates.io (the default registry); no git dependencies.
+unknown-registry = "deny"
+unknown-git = "deny"

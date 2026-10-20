@@ -88,14 +88,22 @@ If `tauri build` fails with `failed to remove extra attributes from app bundle: 
 
 ## Commands available today
 
-The app skeleton arrives with task K-1.x ([MVP_TASKS.md](MVP_TASKS.md)). Until then:
+These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before opening a PR:
 
 | Command | What it does |
 |---|---|
+| `cargo test --workspace` | All Rust tests |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Lints, including the **forbidden APIs**: file mutation outside the Executor ([ADR-0002](adr/0002-plan-review-apply.md)) and any I/O in `kipple-core` |
+| `cargo fmt --all` | Formats the code |
+| `cargo xtask layering` | Checks that crates only depend inward (ARCHITECTURE §2). A new crate needs a rule in `xtask/src/layering.rs` |
+| `cargo xtask clippy-config` | Checks that the **generated** `clippy.toml` and `crates/kipple-core/clippy.toml` are up to date. To change the forbidden APIs, edit `xtask/src/clippy_config.rs` and run `cargo xtask clippy-config --write`; never edit the TOML files by hand |
+| `cargo deny check` | Licences (GPL-3.0-compatible only), security advisories, crate sources. Install with `brew install cargo-deny` or `cargo install cargo-deny --locked` |
 | `pnpm check:spdx` | Checks that every source file has the `GPL-3.0-or-later` licence header |
 | `pnpm test:scripts` | Runs the tests for the repo scripts |
 
-This table grows as the skeleton lands (`pnpm tauri dev`, `cargo test --workspace`, `pnpm test`, …).
+The app itself (`pnpm tauri dev`) and the frontend tests (`pnpm test`) arrive with K-1.2.
+
+**Need an exception to the forbidden APIs?** Only the Executor and the platform adapters it calls may change files. Put `#[allow(clippy::disallowed_methods)]` on that specific module with a comment saying why; reviewers check every one.
 
 ## Repository layout (planned)
 
