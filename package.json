@@ -14,6 +14,6 @@
   "scripts": {
     "check:spdx": "bash scripts/check-spdx.sh",
     "check:npm-licenses": "node scripts/check-npm-licenses.mjs",
-    "test:scripts": "bash scripts/tests/check-spdx.test.sh && node --test \"scripts/tests/*.test.mjs\""
+    "test:scripts": "bash scripts/tests/check-spdx.test.sh && bash scripts/tests/create-release-secrets.test.sh && node --test \"scripts/tests/*.test.mjs\""
   }
 }

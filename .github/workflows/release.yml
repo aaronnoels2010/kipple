@@ -1,0 +1,194 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Builds the installers for a version tag (vX.Y.Z) into a DRAFT GitHub release, with SHA-256
+# checksums and build-provenance attestations. Publishing the draft is a manual step.
+# Secrets: created by scripts/release/create-release-secrets.sh (ADR-0008).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  draft:
+    name: Draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      release-id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Check the tag, version and updater key
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME doesn't match Cargo.toml version $version"
+            exit 1
+          fi
+          # MSI versions only hold numbers: 0.2.0 or 0.2.0-1, never 0.2.0-rc.1.
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$'; then
+            echo "::error::version $version: use X.Y.Z or X.Y.Z-N (numeric pre-release, for MSI)"
+            exit 1
+          fi
+          if ! grep -q '"pubkey"' app/src-tauri/tauri.release.conf.json; then
+            echo "::error::no updater public key; run scripts/release/create-release-secrets.sh"
+            exit 1
+          fi
+      - name: Create the draft (or reuse it when the workflow is re-run)
+        id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id")
+          case $(printf '%s' "$ids" | grep -c .) in
+            0)
+              prerelease=false
+              case "$GITHUB_REF_NAME" in *-*) prerelease=true ;; esac
+              id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+                -f tag_name="$GITHUB_REF_NAME" -f name="Kipple ${GITHUB_REF_NAME#v}" \
+                -F draft=true -F prerelease=$prerelease \
+                -f body="Install guide and checksum verification: docs/INSTALL.md. Checksums: SHA256SUMS.txt." \
+                --jq .id) ;;
+            1)
+              id=$ids
+              [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq .draft)" = true ] \
+                || { echo "::error::$GITHUB_REF_NAME is already published"; exit 1; } ;;
+            *) echo "::error::several releases for $GITHUB_REF_NAME; delete the extra drafts"; exit 1 ;;
+          esac
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS universal
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin x86_64-apple-darwin
+          - name: Windows
+            os: windows-latest
+            args: ""
+            rust-targets: ""
+          # An explicit LTS (not -latest), so the AppImage's glibc baseline only moves on purpose.
+          - name: Linux
+            os: ubuntu-24.04
+            args: ""
+            rust-targets: ""
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Linux build and bundling libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev patchelf file
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          if [ -n "${{ matrix.rust-targets }}" ]; then rustup target add ${{ matrix.rust-targets }}; fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and upload the installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS: the self-signed "Kipple Release Signing" certificate (ADR-0008). No Apple ID,
+          # so nothing is notarised.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        with:
+          projectPath: app
+          releaseId: ${{ needs.draft.outputs.release-id }}
+          # Updater bundles + latest.json (signed with the updater key), for the v1 updater.
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+      - name: macOS signature is the stable self-signed one
+        if: runner.os == 'macOS'
+        run: |
+          app=$(find target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          codesign --verify --strict --verbose=2 "$app"
+          codesign -dvv "$app" 2>&1 | grep -q '^Authority=Kipple Release Signing$'
+      - name: Portable Windows build (exe + "portable" marker)
+        if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p portable/Kipple
+          cp target/release/kipple.exe portable/Kipple/Kipple.exe
+          : > portable/Kipple/portable
+          name="Kipple_${version}_x64-portable.zip"
+          (cd portable && 7z a -tzip "$name" Kipple >/dev/null)
+          release="repos/$GITHUB_REPOSITORY/releases/${{ needs.draft.outputs.release-id }}"
+          old=$(gh api "$release/assets" --jq ".[] | select(.name == \"$name\") | .id")
+          [ -z "$old" ] || gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old" # re-run
+          gh api -X POST -H "Content-Type: application/zip" --input "portable/$name" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/${{ needs.draft.outputs.release-id }}/assets?name=$name" >/dev/null
+
+  checksums:
+    name: Checksums and attestations
+    needs: [draft, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download the release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.draft.outputs.release-id }}
+        run: |
+          mkdir assets
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" \
+            --jq '.[] | select(.name != "SHA256SUMS.txt") | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r asset name; do
+            gh api -H "Accept: application/octet-stream" \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$asset" > "assets/$name"
+          done
+          ls -l assets
+      - name: SHA256SUMS.txt
+        run: (cd assets && sha256sum -- * > ../SHA256SUMS.txt) && cat SHA256SUMS.txt
+      - name: Build-provenance attestations
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: assets/*
+      - name: Upload the checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.draft.outputs.release-id }}
+        run: |
+          old=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" \
+            --jq '.[] | select(.name == "SHA256SUMS.txt") | .id')
+          [ -z "$old" ] || gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old" # re-run
+          gh api -X POST -H "Content-Type: text/plain" --input SHA256SUMS.txt \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=SHA256SUMS.txt" >/dev/null

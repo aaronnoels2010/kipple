@@ -126,6 +126,19 @@ The shell's security settings (CSP, only explicitly listed `allow-<command>` cap
 
 **Need an exception to the forbidden APIs?** Only the Executor and the platform adapters it calls may change files. Put `#[allow(clippy::disallowed_methods)]` on that specific module with a comment saying why; reviewers check every one.
 
+## Releasing
+
+Releases are built by `.github/workflows/release.yml` when a `vX.Y.Z` tag is pushed. It makes a **draft** GitHub release with every installer (Windows NSIS per user, MSI and a portable zip; a universal macOS `.dmg` signed with the self-signed "Kipple Release Signing" certificate, [ADR-0008](adr/0008-macos-signing-without-notarisation.md); Linux AppImage, `.deb` and `.rpm`), the signed updater bundles with `latest.json`, `SHA256SUMS.txt` and build-provenance attestations.
+
+**One-time setup (maintainer, on macOS):** `bash scripts/release/create-release-secrets.sh` creates the updater signing key and the macOS certificate in `~/kipple-release-secrets`, uploads them as GitHub Actions secrets and writes the public updater key into `app/src-tauri/tauri.release.conf.json` (commit that). It prints no private key or password. **Back the folder up offline, then delete it**: losing the updater key breaks updates for every installed copy, and a new certificate makes macOS ask every user for folder permissions again.
+
+**Cutting a release:**
+1. Set the version in the root `Cargo.toml` (`[workspace.package] version`). Pre-releases need a numeric suffix (`0.2.0-1`, not `0.2.0-rc.1`), because MSI versions can only hold numbers.
+2. Commit, then `git tag v0.2.0 && git push origin v0.2.0`. The workflow fails early if the tag and the version differ, the pre-release suffix isn't numeric, or the updater public key is missing. Re-running it reuses the same draft.
+3. Check the draft (install it on each OS, see [INSTALL.md](INSTALL.md)), then publish it on GitHub.
+
+Local builds (`pnpm -C app tauri build`) don't need any of the secrets: updater bundles are only made with `--config src-tauri/tauri.release.conf.json`.
+
 ## Repository layout (planned)
 
 ```
