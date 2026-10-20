@@ -10,11 +10,16 @@ cd "$(dirname "$0")"
 mode="${1:?usage: ./simulate-update.sh adhoc|selfsigned}"
 case "$mode" in adhoc|selfsigned) ;; *) echo "mode must be adhoc or selfsigned" >&2; exit 2;; esac
 name="Kipple TCC Spike ($mode)"
-target="/Applications/$name.app"
 src="out/update/$mode-0.0.2/$name.app"
 
+# Wherever the user installed it: /Applications or ~/Applications.
+target=""
+for dir in "/Applications" "$HOME/Applications"; do
+  [ -d "$dir/$name.app" ] && target="$dir/$name.app" && break
+done
+
 [ -d "$src" ] || { echo "Missing $src. Run ./build.sh first." >&2; exit 1; }
-[ -d "$target" ] || { echo "Install 0.0.1 first: $target not found." >&2; exit 1; }
+[ -n "$target" ] || { echo "Install 0.0.1 first: '$name.app' not found in /Applications or ~/Applications." >&2; exit 1; }
 osascript -e "tell application \"$name\" to quit" 2>/dev/null || true
 sleep 1
 rm -rf "$target"

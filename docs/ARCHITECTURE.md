@@ -522,7 +522,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
   - **NSIS with `installMode: currentUser`** is the primary installer (per user, no admin).
   - MSI is optional, for admins (per machine).
   - **Portable `.exe`**: the bare app binary, which needs the WebView2 runtime that ships with Windows 10/11. A `portable` marker file next to the exe stores data beside it. It can't self-update, so it only shows a "new version" link.
-- **macOS:** a universal `.dmg`. It is signed with a **stable self-signed certificate** kept in CI rather than ad-hoc. That keeps the code identity stable across updates, so TCC permissions aren't reset after each update. This is to be confirmed in S2.
+- **macOS:** a universal `.dmg`. It is signed with a **stable self-signed certificate** kept in CI rather than ad-hoc. That keeps the code identity stable across updates, so TCC permissions aren't reset after each update. ✅ Confirmed in S2 ([ADR-0008](adr/0008-macos-signing-without-notarisation.md)).
 - **Linux:** AppImage, `.deb` and `.rpm`.
 - **Updater:** `bundle.createUpdaterArtifacts: true`. It covers the macOS `.app`, Windows NSIS/MSI and the Linux AppImage. `.deb`, `.rpm` and the portable build only get a "new version available" link.
 - **CI:**
@@ -536,7 +536,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
 | # | Risk | Spike | Fallback |
 |---|---|---|---|
 | S1 | ✅ **Done.** **macOS Trash undo** needs `resultingItemURL`, and `~/.Trash` is TCC-protected | Result: trash + restore work without Full Disk Access on internal disks, APFS, Mac OS Extended, ExFAT and FAT32 ([report](../spikes/s1-macos-trash/README.md)). Home "Trash size" needs Full Disk Access | Undo unavailable for that entry, with a clear message; never scan `~/.Trash` |
-| S2 | **Unsigned macOS UX + TCC persistence** across updates | Clean Mac: download → first launch → grant folders → auto-update → check whether grants survive (ad-hoc vs self-signed certificate) | Install guide; re-grant prompt after updates |
+| S2 | ✅ **Done.** **Unsigned macOS UX + TCC persistence** across updates | Result: ad-hoc builds lose folder permissions on every update; a stable self-signed certificate keeps them. First launch needs *Open Anyway* either way ([ADR-0008](adr/0008-macos-signing-without-notarisation.md)) | Install guide; re-grant prompt after updates |
 | S3 | **Last-used signals** are slow (Spotlight) or incomplete (Windows Recent) | Benchmark batched Spotlight lookups on 100k files | Optional enrichment; max(mtime, atime, Kipple opens) |
 | S4 | ✅ **Done.** **Scan performance** at 1M files, especially metadata/file IDs on Windows | Result: 100k first scan ≤ 1.6 s and rescan ≤ 0.94 s on every OS (targets 60 s / 5 s). Windows uses `FileIdBothDirectoryInfo`. Rescan diff per directory, for memory ([report](../spikes/s4-scan-perf/README.md)) | FSEvents / USN replay for huge trees (v1) |
 | S5 | **WebKitGTK media codecs** | H.264/HEVC playback on Ubuntu and Fedora | "Open in default app" |

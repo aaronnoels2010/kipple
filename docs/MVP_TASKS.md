@@ -75,7 +75,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
   - **Done when:**
     - `rust-toolchain.toml`, `.nvmrc`, pnpm and `.editorconfig` are in place.
     - `docs/DEVELOPING.md` lists the prerequisites per OS (Rust, Node, Tauri system dependencies, WebView2 and WebKitGTK notes).
-- [ ] **K-0.3 Spike S2: unsigned macOS + whether permissions survive updates** · M
+- [x] **K-0.3 Spike S2: unsigned macOS + whether permissions survive updates** · M ([ADR-0008](adr/0008-macos-signing-without-notarisation.md))
   - **Goal:** find out whether an app signed without notarisation keeps its macOS folder permissions (TCC grants) across updates.
   - **Done when:** on a clean Mac, the flow download → first launch → grant folder access → update to a newer build has been tested with **an ad-hoc signature vs a self-signed certificate**. The result is recorded in **ADR-0008**, and the first-launch steps for the install guide are written up.
   - **Depends on:** a minimal Tauri hello-world.

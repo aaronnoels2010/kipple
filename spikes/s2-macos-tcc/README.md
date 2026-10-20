@@ -28,7 +28,7 @@
 Do this for **ad-hoc first, then self-signed**. Your own user account is fine, because these are new app IDs. To start over, reset the permissions with `tccutil reset All app.kipple.spike.tcc.adhoc` (or `.selfsigned`).
 
 **A. First install (simulated download)**
-1. Double-click `out/dmg/<mode>-0.0.1.dmg` and drag the app to **/Applications**.
+1. Double-click `out/dmg/<mode>-0.0.1.dmg` and drag the app to **/Applications** or **~/Applications**.
 2. Open it from /Applications. Write down **exactly what macOS shows** (dialog title and buttons).
 3. If it's blocked: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. Write down the steps it took.
 4. In the app (it shows **v0.0.1**), click **Read Desktop**. macOS should ask *"… would like to access files in your Desktop folder"*. Click **Allow**. Expected result: ✅ N entries.
@@ -48,15 +48,17 @@ Do this for **ad-hoc first, then self-signed**. Your own user account is fine, b
 
 ## Results
 
-Machine: macOS ____ (Apple Silicon / Intel) · Tester: ____ · Date: ____
+Machine: macOS 27.0.1 (Apple Silicon) · Tester: project maintainer · Date: 2026-10-20 · Installed into `~/Applications` (works the same as `/Applications`)
 
 | Step | Ad-hoc | Self-signed |
 |---|---|---|
-| A2. First launch: what Gatekeeper showed | | |
-| A3. Steps needed to open | | |
-| A4. Desktop prompt shown & allowed? | | |
-| B8. Gatekeeper again after update? | | |
-| **B9. Desktop access after update** (asked again / ✅ silently / ❌ silently) | | |
-| C. Update via new .dmg: Gatekeeper / Desktop access | | |
+| A2–A3. First launch | Blocked; **Open Anyway** in System Settings → Privacy & Security needed | Same |
+| A4. Desktop prompt shown & allowed? | Yes | Yes |
+| **B9. Desktop access after update** | ❌ **macOS asked again** | ✅ **Remembered, no prompt** |
+| C. Update via new .dmg | Not tested (optional) | Not tested (optional) |
+
+**Conclusion:** the hypothesis holds. Ship macOS builds signed with a stable self-signed certificate ([ADR-0008](../../docs/adr/0008-macos-signing-without-notarisation.md), Accepted).
+
+Cleanup: drag both "Kipple TCC Spike" apps from Applications to the Trash, and run `tccutil reset All app.kipple.spike.tcc.adhoc` and `tccutil reset All app.kipple.spike.tcc.selfsigned`.
 
 Automatic evidence (`out/inspect.txt`): see the **"Designated requirement"** section in [ADR-0008](../../docs/adr/0008-macos-signing-without-notarisation.md).

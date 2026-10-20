@@ -293,7 +293,7 @@ Privacy options: a local model (offline) or a cloud API, with a clear indicator 
 ### Installers per OS [MVP]
 | OS | Formats | Notes |
 |---|---|---|
-| macOS | `.dmg` (universal: Apple Silicon + Intel) | Signed with a free **self-signed certificate** (a stable identity, so macOS keeps folder permissions across updates; to be confirmed in spike S2) but **not notarised**, so Gatekeeper asks the user to approve it once |
+| macOS | `.dmg` (universal: Apple Silicon + Intel) | Signed with a free **self-signed certificate** (a stable identity, so macOS keeps folder permissions across updates; confirmed in spike S2, ADR-0008) but **not notarised**, so Gatekeeper asks the user to approve it once |
 | Windows | NSIS `.exe` setup **per user** (no admin) as the main installer, an optional `.msi` for admins, plus a **portable `.exe`** (no install, no auto-update) | Unsigned, so SmartScreen warns once ("Windows protected your PC") |
 | Linux | **AppImage** (portable, runs on most distros), plus `.deb` and `.rpm` | No signing required; optional GPG signature and checksum |
 

@@ -1,6 +1,6 @@
 # ADR-0008: Sign macOS builds with a stable self-signed certificate, not ad-hoc
 
-- Status: **Proposed**. The automatic evidence is in; the manual TCC test is pending (see [spike S2](../../spikes/s2-macos-tcc/README.md))
+- Status: **Accepted**. Confirmed by the automatic evidence and the manual TCC test on 2026-10-20 (see [spike S2](../../spikes/s2-macos-tcc/README.md))
 - Date: 2026-10-20
 - Task: K-0.3 (spike S2)
 
@@ -19,9 +19,16 @@ Kipple needs folder permissions (TCC: Desktop, Documents, Downloads, maybe Full 
 - `codesign` accepts the self-signed certificate **without it being trusted** in any keychain. A dedicated keychain file is enough, so there are no admin prompts and the login keychain isn't touched.
 - Gatekeeper (`spctl`) rejects **both** variants, as expected without notarisation. Either way, users approve the app once via *System Settings → Privacy & Security → Open Anyway*.
 
-**Manual TCC confirmation:** *pending*. The results table is in `spikes/s2-macos-tcc/README.md`.
+**Manual TCC confirmation (2026-10-20, macOS 27.0.1, Apple Silicon):**
 
-## Decision (proposed)
+| | Ad-hoc | Self-signed |
+|---|---|---|
+| First launch of the downloaded `.dmg` app | Blocked by Gatekeeper; **Open Anyway** needed in *System Settings → Privacy & Security* | Same |
+| Desktop access after the update to v0.0.2 | ❌ **macOS asked again** | ✅ **Remembered, no prompt** |
+
+This matches the DR evidence exactly. Ad-hoc signing makes every update look like a new app to TCC; a stable self-signed certificate does not.
+
+## Decision
 1. Sign every macOS release with **one long-lived self-signed code-signing certificate** ("Kipple Release Signing"), using a fixed bundle identifier (`app.kipple.desktop`).
 2. Never ship ad-hoc signed releases. Ad-hoc is fine for local development builds only.
 3. Treat the certificate's **private key as a release secret**, like the updater key:
@@ -29,7 +36,7 @@ Kipple needs folder permissions (TCC: Desktop, Documents, Downloads, maybe Full 
    - It is valid for 10+ years and **never rotated** unless compromised. Rotating it changes the DR, so every user would have to grant permissions once more.
 
 ## Consequences
-- ✅ Folder permissions should survive updates (to be confirmed manually). Rules and scheduled scans keep working after an update.
+- ✅ Folder permissions survive updates (confirmed manually). Rules and scheduled scans keep working after an update.
 - ✅ Free, and it works in CI with a temporary keychain.
 - ⚠️ **Security:** anyone holding the private key can sign an app with Kipple's identifier and DR, and that app would **inherit Kipple's folder permissions without a prompt**. Mitigations:
   - The key is only ever in CI secrets and offline backup.
