@@ -1,0 +1,44 @@
+# Spike S4 (K-0.5): scan performance on Linux, Windows and macOS runners.
+# Manual only: Actions → "Spike S4 · scan benchmark" → Run workflow.
+name: Spike S4 · scan benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      sizes:
+        description: "Tree sizes (files), space separated"
+        default: "100000 1000000"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: Run benchmark
+        env:
+          SIZES: ${{ inputs.sizes }}
+          DROP_CACHES: "1" # Linux only: cold-cache first scan
+        run: bash spikes/s4-scan-perf/run.sh
+      - name: Job summary
+        if: always()
+        run: cat spikes/s4-scan-perf/out/results-*.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-bench-${{ matrix.os }}
+          path: spikes/s4-scan-perf/out/results-*.md

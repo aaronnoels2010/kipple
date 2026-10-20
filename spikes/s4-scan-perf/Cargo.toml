@@ -1,0 +1,29 @@
+[package]
+name = "kipple-spike-scan"
+version = "0.0.1"
+description = "Spike S4 (K-0.5): scan performance on 100k / 1M files. Throwaway."
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+# Standalone: never part of the main Cargo workspace.
+[workspace]
+
+[dependencies]
+ignore = "=0.4.31"
+rusqlite = { version = "=0.40.1", features = ["bundled"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "=0.2.189"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+debug = false
