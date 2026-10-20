@@ -145,8 +145,8 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - A redaction layer replaces paths with an **HMAC-SHA256 hash using a per-install salt**.
     - A panic hook and an error-string scrubber are in place.
     - Unit tests prove that no raw path reaches the log file.
-- [ ] **K-1.8 CI pipeline** · M
-  - **Done when:** `ci.yml` runs fmt, clippy, Rust tests, frontend tests, the licence checks (`cargo-deny` + npm), the i18n check, the SPDX check and the bindings check on **macOS, Windows and Ubuntu**.
+- [x] **K-1.8 CI pipeline** · M
+  - **Done when:** `ci.yml` runs clippy, Rust tests (including the bindings and Rust catalog checks) and the frontend tests and build (including the i18n checks) on **macOS, Windows and Ubuntu**, and the OS-independent checks once: fmt, the licence checks (`cargo-deny` + npm) and the SPDX check.
 - [ ] **K-1.9 Release pipeline** · M
   - **Done when:** a tag triggers `tauri-action`, which builds:
     - **Windows:** an NSIS installer (`currentUser`), an MSI, and a portable exe with a `portable` marker file.

@@ -43,9 +43,13 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
 
   frontend:
-    name: Frontend (typecheck, tests, build)
-    runs-on: ubuntu-latest
+    name: Frontend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
@@ -54,12 +58,17 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: pnpm -C app typecheck
       - name: Tests
         run: pnpm -C app test
-      - name: Build
+      - name: Typecheck and build # the build script runs tsc first
         run: pnpm -C app build
+      # Not OS-specific: once is enough.
+      - name: npm licences (allowlist shared with deny.toml)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm check:npm-licenses
+      - name: Script tests (Node)
+        if: matrix.os == 'ubuntu-latest'
+        run: node --test "scripts/tests/*.test.mjs"
 
   rust:
     name: Rust (${{ matrix.os }})
