@@ -419,7 +419,7 @@ v1 adds `similar_image`, `version_cluster`, `broken_link`, `dev_junk` and `os_ju
 
 | Port | macOS | Windows | Linux |
 |---|---|---|---|
-| `Trash` (+ `supports(volume)`, restore) | `trashItemAtURL:resultingItemURL:`; external volumes have `.Trashes`, network volumes usually have no trash | Recycle Bin only on fixed NTFS volumes; restore via `trash` crate | freedesktop spec, incl. `$topdir/.Trash-$uid`; restore via `trash` crate |
+| `Trash` (+ `supports(volume)`, restore) | `trashItemAtURL:resultingItemURL:`. `supports` = `MNT_LOCAL` && !`MNT_RDONLY` && `URLForDirectory(NSTrashDirectory, appropriateForURL:, create: YES)` succeeds (S9) | `supports` = `DRIVE_FIXED` && `SHQueryRecycleBinW` is `S_OK` (fixed NTFS/FAT32/exFAT all have one). **Network drives: trash = silent permanent delete (S9)**. Restore via `trash` crate | freedesktop spec, incl. `$topdir/.Trash-$uid`. `supports` = not network fs && not read-only && (same device as home Trash or topdir usable). Restore via `trash` crate |
 | `TrashUsage` | Unavailable without Full Disk Access; otherwise `~/.Trash` size | `SHQueryRecycleBin` | Trash dir size |
 | `LastUsed` | Spotlight `kMDItemLastUsedDate` (batched) | Recent Items `.lnk` targets | `recently-used.xbel` (+ KDE RecentDocuments) |
 | `DownloadOrigin` | `kMDItemWhereFroms` xattr | `Zone.Identifier` ADS (`HostUrl`) | `user.xdg.origin.url` xattr (Chromium-based) |
@@ -543,7 +543,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
 | S6 | **inotify limits** (one watch per directory) | Count directories on large real trees | Periodic rescan |
 | S7 | **Shell integration while unsigned** | v1 spike | Services menu (macOS), classic menu (Windows) |
 | S8 | **Idle memory** with the tray active | Measure the tray-only process with the webview destroyed vs hidden, on all 3 OSes | Always destroy the webview in tray mode ([ADR-0004](adr/0004-i18n-codes-not-text.md)) |
-| S9 | **Trash support detection** per volume (USB, SMB, NFS, exFAT) | Test matrix on all 3 OSes | Treat unknown as "no trash" (blocking issue) |
+| S9 | ✅ **Done.** **Trash support detection** per volume (USB, SMB, NFS, exFAT) | Result: 0 unsafe predictions on macOS, Linux and Windows. Windows SMB confirmed as a **silent permanent delete** ([report](../spikes/s9-trash-support/README.md)) | Treat unknown as "no trash" (blocking issue) |
 
 ---
 

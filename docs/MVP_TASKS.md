@@ -89,7 +89,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - There is a **synthetic tree generator** (100k and 1M files, realistic depth and names).
     - The `ignore` walker plus metadata collection (including file IDs) has been benchmarked on macOS, Windows (NTFS) and Linux (ext4).
     - Results are compared with the targets (first scan of 100k files < 60 s, rescan < 5 s), with a decision on the Windows enumeration path.
-- [ ] **K-0.6 Spike S9: Trash support per volume** · S
+- [x] **K-0.6 Spike S9: Trash support per volume** · S ([result](../spikes/s9-trash-support/README.md))
   - **Done when:** there is a matrix of internal / USB exFAT / USB NTFS / SMB / NFS × macOS / Windows / Linux showing whether a Trash exists and how to detect it. The rule is that unknown counts as "no Trash".
 
 ---
@@ -291,7 +291,7 @@ The safety foundation. **This slice gets the most thorough tests.**
     - Progress events are emitted.
 - [ ] **K-4.6 Trash port with restore** · M
   - **Done when:**
-    - `supports(volume)` works on all three OSes (using the K-0.6 matrix).
+    - `supports(volume)` works on all three OSes, using the rules proven in K-0.6 (ARCHITECTURE §8). A contract test asserts that **trash is never called on a Windows network drive or UNC path**, where S9 showed the call silently deletes permanently.
     - Trash and restore work on Windows and Linux via the `trash` crate, and on macOS via NSFileManager (from the K-0.4 spike).
     - Restores use the no-overwrite primitives from ADR-0002 §9, including the ExFAT fallback, and are tested on APFS, Mac OS Extended, ExFAT and FAT32 images in CI.
     - An entry is marked done only after its trash location has been recorded.
