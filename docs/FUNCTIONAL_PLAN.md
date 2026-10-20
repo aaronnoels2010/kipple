@@ -392,7 +392,7 @@ AI categorisation and rename, OCR, full-text search, natural-language rules and 
 - **Identifiers:** app/bundle ID e.g. `app.kipple.desktop`, used consistently for the installers, the right-click menu, the app-data folder and the update key.
 
 **Name checks still to do before the first public release:**
-- [ ] GitHub organisation / repo name (e.g. `kipple-app/kipple`)
+- [x] GitHub repo: [github.com/aaronnoels2010/kipple](https://github.com/aaronnoels2010/kipple)
 - [ ] Domain (e.g. `kipple.app` or `getkipple.app`), only needed for a landing page, which can be hosted free on GitHub Pages
 - [ ] Trademark search in the Benelux (BOIP), the EU (EUIPO) and the US (USPTO) for the software classes. A word from a novel isn't protected by copyright, but someone could have registered it as a trademark
 - [ ] Package names on Flathub, winget and Homebrew
