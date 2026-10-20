@@ -2067,7 +2067,7 @@ dependencies = [
 
 [[package]]
 name = "kipple-app"
-version = "0.0.0"
+version = "0.0.1-1"
 dependencies = [
  "getrandom 0.4.3",
  "hmac",
@@ -2092,19 +2092,19 @@ dependencies = [
 
 [[package]]
 name = "kipple-cli"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "kipple-core"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "kipple-engine"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "kipple-i18n-rs"
-version = "0.0.0"
+version = "0.0.1-1"
 dependencies = [
  "icu_locale_core",
  "icu_plurals",
@@ -2113,15 +2113,15 @@ dependencies = [
 
 [[package]]
 name = "kipple-index"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "kipple-platform"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "kipple-preview"
-version = "0.0.0"
+version = "0.0.1-1"
 
 [[package]]
 name = "lazy_static"
@@ -5042,7 +5042,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.0"
+version = "0.0.1-1"
 dependencies = [
  "serde",
  "serde_json",
