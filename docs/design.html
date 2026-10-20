@@ -1,0 +1,1381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kipple Design System</title>
+<meta name="description" content="Theme tokens, components and screen mockups for Kipple, in light and dark mode.">
+<!-- Mockup only. The real app bundles these OFL fonts locally (privacy promise: no network calls). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..800,50..100,0..1&family=Instrument+Sans:wght@400..700&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   1. TOKENS: light ("Eggshell") is the default, dark ("Night coop")
+   ===================================================================== */
+:root, .theme-light {
+  color-scheme: light;
+  --bg: #FBF7EE;
+  --surface: #FFFFFF;
+  --surface-2: #F3EDE0;
+  --surface-3: #EAE2D2;
+  --sidebar: #F5F0E4;
+  --border: #E3DACA;
+  --border-strong: #8F8574;
+  --text: #211C15;
+  --text-muted: #6A6052;
+  --text-faint: #9A907F;
+
+  --yolk: #F6B91A;          /* brand accent, primary fills */
+  --yolk-hover: #E8A90A;
+  --yolk-soft: #FDF0C8;
+  --on-yolk: #211C15;
+  --yolk-ink: #8A5800;      /* accent as text on light */
+
+  --comb: #C2372B;          /* destructive: trash, delete */
+  --comb-hover: #A82C21;
+  --comb-soft: #FBE3DF;
+  --on-comb: #FFFFFF;
+
+  --sage: #2C7A4B;          /* keep, success, space saved */
+  --sage-soft: #DFF0E5;
+  --amber: #955700;         /* warning */
+  --amber-soft: #FCEBD0;
+  --sky: #2F62C9;           /* info, links, focus */
+  --sky-soft: #E1EAFB;
+  --focus: #2F62C9;
+
+  --cat-image: #B04A8C;
+  --cat-video: #7A4FC0;
+  --cat-audio: #2A7F80;
+  --cat-doc: #2F62C9;
+  --cat-archive: #86662A;
+  --cat-installer: #B5561E;
+  --cat-code: #4D6A2C;
+  --cat-shot: #5B6676;
+
+  --hen: #FFF6E0;
+  --hen-line: #211C15;
+  --beak: #F08A1C;
+  --wing: #F6DFA4;
+
+  --inverse-accent: #F6B91A;  /* accent on inverted surfaces (toast, action bar) */
+  --inverse-ok: #62C48E;
+
+  --shadow-1: 0 1px 2px rgba(60,40,10,.07), 0 1px 1px rgba(60,40,10,.04);
+  --shadow-2: 0 8px 20px -8px rgba(60,40,10,.20), 0 2px 4px rgba(60,40,10,.06);
+  --shadow-3: 0 28px 56px -20px rgba(60,40,10,.32), 0 6px 14px rgba(60,40,10,.08);
+  --grain-opacity: .045;
+}
+
+.theme-dark, :root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14120E;
+  --surface: #1C1914;
+  --surface-2: #25211A;
+  --surface-3: #2E2920;
+  --sidebar: #181611;
+  --border: #332D24;
+  --border-strong: #7A705F;
+  --text: #F2ECDF;
+  --text-muted: #A69C8B;
+  --text-faint: #756C5E;
+
+  --yolk: #FFC53D;
+  --yolk-hover: #FFD166;
+  --yolk-soft: #3A2F12;
+  --on-yolk: #1A150C;
+  --yolk-ink: #FFC53D;
+
+  --comb: #FF7A6B;
+  --comb-hover: #FF9486;
+  --comb-soft: #3D1D19;
+  --on-comb: #14120E;
+
+  --sage: #62C48E;
+  --sage-soft: #16301F;
+  --amber: #F2A93B;
+  --amber-soft: #36270F;
+  --sky: #7FAEFF;
+  --sky-soft: #17243D;
+  --focus: #8DB6FF;
+
+  --cat-image: #E58BC4;
+  --cat-video: #B596F0;
+  --cat-audio: #6CC9C9;
+  --cat-doc: #7FAEFF;
+  --cat-archive: #D6B36A;
+  --cat-installer: #F09A5E;
+  --cat-code: #A6C77A;
+  --cat-shot: #A9B4C2;
+
+  --hen: #F2E6C9;
+  --hen-line: #1A150C;
+  --beak: #F59A33;
+  --wing: #DCC48C;
+
+  --inverse-accent: #8A5800;
+  --inverse-ok: #2C7A4B;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-2: 0 10px 24px -10px rgba(0,0,0,.65), 0 2px 4px rgba(0,0,0,.3);
+  --shadow-3: 0 30px 60px -20px rgba(0,0,0,.75), 0 6px 14px rgba(0,0,0,.4);
+  --grain-opacity: .06;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14120E; --surface: #1C1914; --surface-2: #25211A; --surface-3: #2E2920; --sidebar: #181611;
+    --border: #332D24; --border-strong: #7A705F;
+    --text: #F2ECDF; --text-muted: #A69C8B; --text-faint: #756C5E;
+    --yolk: #FFC53D; --yolk-hover: #FFD166; --yolk-soft: #3A2F12; --on-yolk: #1A150C; --yolk-ink: #FFC53D;
+    --comb: #FF7A6B; --comb-hover: #FF9486; --comb-soft: #3D1D19; --on-comb: #14120E;
+    --sage: #62C48E; --sage-soft: #16301F; --amber: #F2A93B; --amber-soft: #36270F;
+    --sky: #7FAEFF; --sky-soft: #17243D; --focus: #8DB6FF;
+    --cat-image: #E58BC4; --cat-video: #B596F0; --cat-audio: #6CC9C9; --cat-doc: #7FAEFF;
+    --cat-archive: #D6B36A; --cat-installer: #F09A5E; --cat-code: #A6C77A; --cat-shot: #A9B4C2;
+    --hen: #F2E6C9; --hen-line: #1A150C; --beak: #F59A33; --wing: #DCC48C;
+    --inverse-accent: #8A5800; --inverse-ok: #2C7A4B;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-2: 0 10px 24px -10px rgba(0,0,0,.65), 0 2px 4px rgba(0,0,0,.3);
+    --shadow-3: 0 30px 60px -20px rgba(0,0,0,.75), 0 6px 14px rgba(0,0,0,.4);
+    --grain-opacity: .06;
+  }
+}
+
+:root {
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Instrument Sans", "Segoe UI Variable", "SF Pro Text", system-ui, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 16px; --r-xl: 22px; --r-pill: 999px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px;
+
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+  --dur-1: 120ms; --dur-2: 200ms; --dur-3: 360ms;
+}
+
+/* =====================================================================
+   2. BASE
+   ===================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 84px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+/* subtle paper grain */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.theme-light, .theme-dark { background: var(--bg); color: var(--text); }
+a { color: var(--sky); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
+.mono { font-family: var(--font-mono); font-stretch: 87.5%; font-size: .86em; letter-spacing: -.01em; }
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+i[data-lucide], svg.lucide { width: 16px; height: 16px; flex: none; stroke-width: 1.9; display: inline-block; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.page { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .page { padding: 0 32px; } }
+.hero > *, .block-head > *, .grid-2 > *, .grid-3 > *, .compare > * { min-width: 0; }
+@media (max-width: 560px) {
+  .wordmark small { display: none; }
+  .doc-bar .controls { gap: 6px; }
+  .segmented button { padding: 0 9px; }
+}
+
+/* =====================================================================
+   3. DOC CHROME (design-page only)
+   ===================================================================== */
+.doc-bar {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.doc-bar .page { display: flex; align-items: center; gap: var(--s-4); height: 64px; }
+.doc-bar nav { display: none; gap: var(--s-1); margin-left: var(--s-4); }
+.doc-bar nav a { color: var(--text-muted); text-decoration: none; padding: 6px 10px; border-radius: var(--r-pill); font-weight: 500; }
+.doc-bar nav a:hover { color: var(--text); background: var(--surface-2); }
+@media (min-width: 900px) { .doc-bar nav { display: flex; } }
+.doc-bar .controls { margin-left: auto; display: flex; gap: var(--s-2); align-items: center; }
+
+.wordmark { font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: -.02em; line-height: 1;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72; display: inline-flex; align-items: baseline; position: relative; color: var(--text); text-decoration: none; }
+.wordmark .i { position: relative; }
+.wordmark .i::after { content: ""; position: absolute; left: 50%; top: -.08em; width: .26em; height: .3em; transform: translateX(-46%);
+  background: var(--yolk); border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; box-shadow: inset -1px -2px 0 rgba(0,0,0,.12); }
+.wordmark small { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--text-muted); margin-left: 10px; letter-spacing: .02em;
+  font-variation-settings: normal; }
+
+.hero { padding: 72px 0 40px; display: grid; gap: 40px; align-items: center; }
+@media (min-width: 900px) { .hero { grid-template-columns: 1.25fr .75fr; padding: 96px 0 56px; } }
+.eyebrow { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--yolk-ink); font-weight: 500; }
+.hero h1 { font-family: var(--font-display); font-weight: 650; font-size: clamp(44px, 8vw, 88px); line-height: .95; letter-spacing: -.035em; margin: 14px 0 20px;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144; }
+.hero h1 em { font-style: italic; color: var(--yolk-ink); }
+.hero p.lead { font-size: 17px; max-width: 54ch; color: var(--text-muted); margin: 0 0 24px; }
+.hero-art { position: relative; justify-self: center; width: min(360px, 80vw); aspect-ratio: 1; }
+.hero-art .egg-bg { position: absolute; inset: 6% 10%; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  background: radial-gradient(circle at 38% 32%, var(--yolk-soft), transparent 62%), var(--surface-2); border: 1px solid var(--border); }
+.hero-art .hen-xl { position: absolute; inset: 14% 14% 6%; animation: bob 4.8s var(--ease-out) infinite; }
+.hero-art .speech { position: absolute; top: 4%; right: -2%; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-2);
+  padding: 10px 14px; border-radius: 16px 16px 16px 4px; font-weight: 600; font-size: 13px; transform: rotate(3deg); }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-8px) rotate(1.5deg); } }
+
+.principles { display: flex; flex-wrap: wrap; gap: 8px; }
+.principle { display: inline-flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--border); font-weight: 500; }
+
+section.block { padding: 56px 0; border-top: 1px solid var(--border); }
+.block-head { display: grid; gap: 8px; margin-bottom: 32px; }
+@media (min-width: 900px) { .block-head { grid-template-columns: 200px 1fr; gap: 32px; align-items: baseline; } }
+.block-head .num { font-family: var(--font-mono); font-stretch: 87.5%; color: var(--text-faint); font-size: 12px; }
+.block-head h2 { font-family: var(--font-display); font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 96; font-weight: 600; font-size: clamp(30px, 4.4vw, 46px);
+  letter-spacing: -.025em; line-height: 1.05; margin: 0; }
+.block-head p { margin: 8px 0 0; color: var(--text-muted); max-width: 70ch; }
+.sub-h { font-family: var(--font-ui); font-weight: 650; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 40px 0 14px;
+  display: flex; align-items: center; gap: 10px; }
+.sub-h::after { content: ""; height: 1px; flex: 1; background: var(--border); }
+
+.specimen { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 24px; box-shadow: var(--shadow-1); }
+.grid-2 { display: grid; gap: 16px; }
+@media (min-width: 860px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+.grid-3 { display: grid; gap: 16px; }
+@media (min-width: 900px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.stack { display: grid; gap: 12px; }
+.label-sm { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.note { font-size: 12.5px; color: var(--text-muted); margin-top: 12px; }
+.note b { color: var(--text); }
+
+/* staggered reveal on load */
+.reveal { opacity: 0; transform: translateY(14px); animation: rise .7s var(--ease-out) forwards; }
+.reveal:nth-child(2) { animation-delay: .08s; } .reveal:nth-child(3) { animation-delay: .16s; } .reveal:nth-child(4) { animation-delay: .24s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* =====================================================================
+   4. FOUNDATIONS
+   ===================================================================== */
+.theme-panel { border-radius: var(--r-xl); padding: 20px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+.theme-panel h3 { margin: 0 0 16px; font-family: var(--font-display); font-weight: 600; font-size: 22px; font-variation-settings: "SOFT" 100, "WONK" 1; display: flex; gap: 10px; align-items: center; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.swatch { border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+.swatch .chip { height: 56px; background: var(--c); border-bottom: 1px solid var(--border); position: relative; }
+.swatch .chip span { position: absolute; left: 10px; bottom: 8px; font-weight: 650; font-size: 13px; color: var(--on, var(--text)); }
+.swatch .meta { padding: 8px 10px; display: grid; gap: 1px; }
+.swatch .meta b { font-size: 12.5px; }
+.swatch .meta code { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10.5px; color: var(--text-muted); }
+
+.type-row { display: grid; gap: 4px 24px; padding: 16px 0; border-bottom: 1px dashed var(--border); align-items: baseline; }
+.type-row:last-child { border-bottom: 0; }
+@media (min-width: 760px) { .type-row { grid-template-columns: 170px 1fr; } }
+.type-row .spec { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11px; color: var(--text-muted); }
+.t-display { font-family: var(--font-display); font-weight: 650; font-size: 48px; line-height: 1; letter-spacing: -.03em; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144; }
+.t-title { font-family: var(--font-display); font-weight: 600; font-size: 26px; line-height: 1.15; letter-spacing: -.015em; font-variation-settings: "SOFT" 100, "opsz" 48; }
+.t-heading { font-weight: 650; font-size: 16px; }
+.t-body { font-size: 14px; }
+.t-small { font-size: 12.5px; color: var(--text-muted); }
+.t-data { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 12.5px; }
+.t-big-number { font-family: var(--font-display); font-weight: 700; font-size: 40px; letter-spacing: -.03em; font-variation-settings: "SOFT" 50, "opsz" 72; font-variant-numeric: tabular-nums; }
+
+.radius-demo { display: flex; flex-wrap: wrap; gap: 12px; }
+.radius-demo div { width: 76px; height: 76px; background: var(--surface-2); border: 1px solid var(--border-strong); display: grid; place-items: end start; padding: 8px; font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10.5px; color: var(--text-muted); }
+.elev-demo { display: flex; flex-wrap: wrap; gap: 16px; }
+.elev-demo div { width: 130px; height: 86px; border-radius: var(--r-lg); background: var(--surface); display: grid; place-items: center; font-weight: 600; font-size: 12.5px; border: 1px solid var(--border); }
+.space-demo { display: grid; gap: 6px; }
+.space-demo div { display: flex; gap: 12px; align-items: center; font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11px; color: var(--text-muted); }
+.space-demo span { height: 10px; background: var(--yolk); border-radius: 2px; }
+
+.mascots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mascot-card { background: var(--surface-2); border-radius: var(--r-lg); padding: 16px; text-align: center; border: 1px solid var(--border); }
+.mascot-card svg { width: 88px; height: 88px; }
+.mascot-card b { display: block; margin-top: 6px; }
+.mascot-card span { font-size: 12px; color: var(--text-muted); }
+
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.icon-grid div { display: grid; justify-items: center; gap: 8px; padding: 14px 6px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); font-size: 11px; color: var(--text-muted); text-align: center; }
+.icon-grid i[data-lucide], .icon-grid svg.lucide { width: 22px; height: 22px; color: var(--text); }
+
+/* =====================================================================
+   5. COMPONENTS
+   ===================================================================== */
+/* Buttons */
+.btn { --b-bg: var(--surface); --b-fg: var(--text); --b-bd: var(--border); --b-hover: var(--surface-2);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 14px;
+  font: 600 13.5px/1 var(--font-ui); color: var(--b-fg); background: var(--b-bg); border: 1px solid var(--b-bd);
+  border-radius: var(--r-md); cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-1);
+  transition: background var(--dur-1), transform var(--dur-1) var(--ease-spring), box-shadow var(--dur-1); }
+.btn:hover { background: var(--b-hover); }
+.btn:active { transform: translateY(1px) scale(.985); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+.btn-primary { --b-bg: var(--yolk); --b-fg: var(--on-yolk); --b-bd: color-mix(in srgb, var(--yolk) 70%, #000 30%); --b-hover: var(--yolk-hover);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.12), var(--shadow-1); }
+.btn-danger { --b-bg: var(--comb); --b-fg: var(--on-comb); --b-bd: transparent; --b-hover: var(--comb-hover); }
+.btn-danger-soft { --b-bg: var(--comb-soft); --b-fg: var(--comb); --b-bd: transparent; --b-hover: color-mix(in srgb, var(--comb-soft) 80%, var(--comb) 20%); box-shadow: none; }
+.btn-keep { --b-bg: var(--sage-soft); --b-fg: var(--sage); --b-bd: transparent; --b-hover: color-mix(in srgb, var(--sage-soft) 80%, var(--sage) 20%); box-shadow: none; }
+.btn-ghost { --b-bg: transparent; --b-bd: transparent; --b-hover: var(--surface-2); box-shadow: none; }
+.btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+.btn-lg { height: 42px; padding: 0 20px; font-size: 15px; border-radius: 12px; }
+.btn-icon { width: 34px; padding: 0; }
+.btn-sm.btn-icon { width: 28px; }
+.btn .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+kbd, .kbd { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10.5px; font-weight: 500; padding: 2px 6px; border-radius: 5px; color: var(--text-muted);
+  background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; line-height: 1.3; }
+.btn-primary kbd { background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.12); color: var(--on-yolk); }
+
+/* Inputs */
+.field { display: grid; gap: 6px; }
+.field > label { font-weight: 600; font-size: 12.5px; }
+.input { height: 34px; padding: 0 12px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: 400 13.5px var(--font-ui); width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,.04); transition: border-color var(--dur-1), box-shadow var(--dur-1); }
+.input:hover { border-color: var(--border-strong); }
+.input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.input.mono { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 12.5px; }
+.input.invalid { border-color: var(--comb); box-shadow: 0 0 0 3px color-mix(in srgb, var(--comb) 18%, transparent); }
+.help { font-size: 12px; color: var(--text-muted); }
+.help.error { color: var(--comb); display: flex; gap: 6px; align-items: center; }
+.search { position: relative; display: flex; align-items: center; }
+.search i, .search svg.lucide { position: absolute; left: 11px; color: var(--text-muted); }
+.search .input { padding-left: 34px; padding-right: 54px; border-radius: var(--r-pill); background: var(--surface-2); border-color: transparent; }
+.search kbd { position: absolute; right: 8px; }
+select.input { appearance: none; padding-right: 32px; background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 15px, calc(100% - 11px) 15px; background-size: 5px 5px; background-repeat: no-repeat; }
+
+.check { display: inline-flex; gap: 10px; align-items: center; cursor: pointer; user-select: none; }
+.check input { appearance: none; width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--border-strong); background: var(--surface); margin: 0; display: grid; place-items: center; cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1); }
+.check input::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--on-yolk); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px,-1px) scale(0); transition: transform var(--dur-2) var(--ease-spring); }
+.check input:checked { background: var(--yolk); border-color: color-mix(in srgb, var(--yolk) 70%, #000 30%); }
+.check input:checked::after { transform: rotate(-45deg) translate(1px,-1px) scale(1); }
+.check input:indeterminate { background: var(--yolk); border-color: color-mix(in srgb, var(--yolk) 70%, #000 30%); }
+.check input:indeterminate::after { width: 8px; height: 0; border-left: 0; transform: none; border-bottom-width: 2px; }
+.check input[type="radio"] { border-radius: 50%; }
+.check input[type="radio"]::after { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--on-yolk); transform: scale(0); }
+.check input[type="radio"]:checked::after { transform: scale(1); }
+
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { appearance: none; width: 38px; height: 22px; border-radius: var(--r-pill); background: var(--surface-3); border: 1px solid var(--border-strong); position: relative; margin: 0; cursor: pointer; transition: background var(--dur-2); }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform var(--dur-2) var(--ease-spring); }
+.switch input:checked { background: var(--sage); border-color: var(--sage); }
+.switch input:checked::after { transform: translateX(16px); }
+
+.segmented { display: inline-flex; padding: 3px; background: var(--surface-2); border-radius: var(--r-pill); border: 1px solid var(--border); gap: 2px; }
+.segmented button { border: 0; background: transparent; color: var(--text-muted); font: 600 12.5px var(--font-ui); height: 28px; padding: 0 12px; border-radius: var(--r-pill); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.segmented button:hover:not([aria-pressed="true"]) { color: var(--text); }
+
+input[type="range"].slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(90deg, var(--yolk) var(--v, 40%), var(--surface-3) var(--v, 40%)); outline-offset: 6px; }
+input[type="range"].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); border: 2px solid var(--yolk-ink); box-shadow: var(--shadow-2); cursor: grab; }
+input[type="range"].slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 2px solid var(--yolk-ink); cursor: grab; }
+
+/* Badges & chips */
+.badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  color: var(--c, var(--text-muted)); background: color-mix(in srgb, var(--c, var(--text-muted)) 13%, transparent); border: 1px solid color-mix(in srgb, var(--c, var(--text-muted)) 24%, transparent); }
+.badge i[data-lucide], .badge svg.lucide { width: 12px; height: 12px; }
+.badge.solid { background: var(--c); color: var(--surface); border-color: transparent; }
+.cat-image { --c: var(--cat-image); } .cat-video { --c: var(--cat-video); } .cat-audio { --c: var(--cat-audio); } .cat-doc { --c: var(--cat-doc); }
+.cat-archive { --c: var(--cat-archive); } .cat-installer { --c: var(--cat-installer); } .cat-code { --c: var(--cat-code); } .cat-shot { --c: var(--cat-shot); }
+.st-active { --c: var(--sage); } .st-stale { --c: var(--amber); } .st-candidate { --c: var(--comb); } .st-pinned { --c: var(--sky); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--sage)); display: inline-block; flex: none; }
+
+/* Confidence: three "eggs" instead of red/green */
+.conf { display: inline-flex; gap: 3px; align-items: center; }
+.conf span { width: 7px; height: 9px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: var(--surface-3); border: 1px solid var(--border-strong); }
+.conf[data-level="1"] span:nth-child(-n+1), .conf[data-level="2"] span:nth-child(-n+2), .conf[data-level="3"] span:nth-child(-n+3) { background: var(--yolk); border-color: color-mix(in srgb, var(--yolk) 60%, #000 40%); }
+.conf b { font-size: 11.5px; font-weight: 600; color: var(--text-muted); margin-left: 4px; }
+
+/* Feedback */
+.banner { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); background: var(--c-soft); border: 1px solid color-mix(in srgb, var(--c) 28%, transparent); color: var(--text); }
+.banner > i, .banner > svg.lucide { color: var(--c); margin-top: 2px; width: 18px; height: 18px; }
+.banner .b-body { flex: 1; display: grid; gap: 2px; }
+.banner .b-body b { font-weight: 650; }
+.banner .b-body span { color: var(--text-muted); font-size: 13px; }
+.banner .b-actions { display: flex; gap: 6px; flex-wrap: wrap; align-self: center; }
+.banner.info { --c: var(--sky); --c-soft: var(--sky-soft); }
+.banner.warn { --c: var(--amber); --c-soft: var(--amber-soft); }
+.banner.danger { --c: var(--comb); --c-soft: var(--comb-soft); }
+.banner.ok { --c: var(--sage); --c-soft: var(--sage-soft); }
+.banner.recovery { --c: var(--yolk-ink); --c-soft: var(--yolk-soft); border-width: 1.5px; border-style: dashed; border-color: color-mix(in srgb, var(--yolk-ink) 45%, transparent); }
+
+.toast { display: inline-flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; border-radius: 14px; background: var(--text); color: var(--bg); box-shadow: var(--shadow-3); font-weight: 500; max-width: 100%; }
+.toast .btn { --b-bg: transparent; --b-fg: var(--inverse-accent); --b-bd: transparent; --b-hover: rgba(127,127,127,.16); box-shadow: none; height: 28px; }
+.toast .t-x { --b-fg: var(--bg); opacity: .6; }
+.toast i, .toast svg.lucide { color: var(--inverse-ok); }
+
+.progress { height: 8px; border-radius: 99px; background: var(--surface-3); overflow: hidden; position: relative; }
+.progress > span { position: absolute; inset: 0 auto 0 0; width: var(--p, 40%); border-radius: inherit;
+  background: repeating-linear-gradient(-45deg, var(--yolk) 0 10px, color-mix(in srgb, var(--yolk) 82%, #fff 18%) 10px 20px); background-size: 28px 28px; animation: march 1s linear infinite; }
+@keyframes march { to { background-position: 28px 0; } }
+.skeleton { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.6s ease-in-out infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.tooltip { position: relative; display: inline-block; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; padding: 6px 10px; border-radius: 8px; box-shadow: var(--shadow-2); }
+.tooltip::after { content: ""; position: absolute; left: 18px; bottom: -5px; width: 10px; height: 10px; background: inherit; transform: rotate(45deg); border-radius: 2px; }
+
+/* Dialog */
+.dialog-grid { align-items: start; }
+.dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-3); overflow: hidden; }
+.dialog header { padding: 20px 22px 6px; display: flex; gap: 14px; align-items: flex-start; }
+.dialog header .d-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--c-soft, var(--yolk-soft)); color: var(--c, var(--yolk-ink)); flex: none; }
+.dialog header .d-icon i, .dialog header .d-icon svg.lucide { width: 20px; height: 20px; }
+.dialog h4 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; font-variation-settings: "SOFT" 100, "opsz" 36; }
+.dialog header p { margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+.dialog .d-body { padding: 14px 22px; display: grid; gap: 12px; }
+.dialog footer { padding: 14px 22px; display: flex; gap: 8px; justify-content: flex-end; background: var(--surface-2); border-top: 1px solid var(--border); flex-wrap: wrap; }
+.summary-list { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.summary-list div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; font-size: 13px; }
+.summary-list div + div { border-top: 1px solid var(--border); }
+.summary-list .mono { color: var(--text-muted); }
+.choice { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--border); cursor: pointer; }
+.choice:has(input:checked) { border-color: var(--yolk-ink); background: var(--yolk-soft); }
+.choice input { grid-row: span 2; margin-top: 2px; }
+.choice small { color: var(--text-muted); font-size: 12px; }
+.conflict-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.conflict-pair > div { border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px; display: grid; gap: 4px; font-size: 12.5px; background: var(--surface-2); }
+.conflict-pair .thumb { height: 72px; border-radius: 8px; }
+
+/* Rows */
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.list-row { display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); }
+.list-row:first-child { border-top: 0; }
+.list-row:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.list-row.selected { background: var(--yolk-soft); box-shadow: inset 3px 0 0 var(--yolk); }
+.list-row.disabled { opacity: .6; }
+.file-ico { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.file-ico i, .file-ico svg.lucide { width: 17px; height: 17px; }
+.f-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.f-sub { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.f-right { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+.f-size { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 12px; min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.dup-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px; display: grid; gap: 12px; }
+.dup-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+.dup-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.dup-card { border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 8px; display: grid; gap: 6px; position: relative; background: var(--surface-2); }
+.dup-card.keep { border-color: var(--sage); background: var(--sage-soft); }
+.dup-card .thumb { height: 86px; border-radius: 8px; }
+.dup-card .tag { position: absolute; top: 14px; left: 14px; }
+.dup-card .path { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.thumb { background: var(--surface-3); position: relative; overflow: hidden; }
+.thumb.photo-a { background: radial-gradient(circle at 70% 30%, #FFE7A3 0 12%, transparent 13%), linear-gradient(180deg, #8EC5E8 0%, #D9EEF7 55%, #6E9F5B 56%, #3F6E3A 100%); }
+.thumb.photo-b { background: radial-gradient(circle at 30% 35%, #FFD3A1 0 10%, transparent 11%), linear-gradient(180deg, #F2A65A 0%, #F7D08A 50%, #C97A40 51%, #7A4A2A 100%); }
+.thumb.photo-c { background: linear-gradient(160deg, #3D5A80 0%, #98C1D9 45%, #E0FBFC 46%, #EE6C4D 100%); }
+.thumb.doc { background: repeating-linear-gradient(180deg, transparent 0 9px, color-mix(in srgb, var(--text) 10%, transparent) 9px 10px), var(--surface); }
+
+.history-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; }
+.history-item + .history-item { border-top: 1px solid var(--border); }
+.h-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.h-dot i, .h-dot svg.lucide { width: 15px; height: 15px; }
+
+.rule-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; display: grid; gap: 12px; }
+.rule-card.off { background: var(--surface-2); }
+.rule-head { display: flex; gap: 12px; align-items: flex-start; }
+.rule-head .r-title { flex: 1; }
+.rule-head .r-title b { display: block; font-size: 14.5px; }
+.rule-flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; }
+.token { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11px; padding: 3px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); white-space: nowrap; }
+.rule-card.off .token { background: var(--surface); }
+
+.empty { text-align: center; padding: 28px 20px; display: grid; justify-items: center; gap: 6px; }
+.empty svg.hen { width: 96px; height: 96px; }
+.empty h5 { margin: 6px 0 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; font-variation-settings: "SOFT" 100, "WONK" 1; }
+.empty p { margin: 0; color: var(--text-muted); max-width: 38ch; }
+
+.kbd-sheet { display: grid; gap: 8px; }
+.kbd-sheet div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+
+/* =====================================================================
+   6. APP WINDOW MOCKUPS
+   ===================================================================== */
+.screen-tabs { margin-bottom: 16px; }
+.window-scroller { overflow-x: auto; padding: 8px 4px 28px; margin: 0 -4px; }
+.window { width: 1180px; height: 740px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-3); background: var(--bg); display: grid; grid-template-rows: 36px 1fr; position: relative; }
+.window .titlebar { display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--sidebar); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.window .titlebar .lights { display: flex; gap: 7px; }
+.window .titlebar .lights span { width: 11px; height: 11px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border-strong); opacity: .6; }
+.window .titlebar .t-center { margin: 0 auto; font-weight: 600; }
+.app { display: grid; grid-template-columns: 228px 1fr; min-height: 0; }
+.sidebar { background: var(--sidebar); border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.sidebar .wordmark { font-size: 24px; margin: 4px 10px 14px; }
+.nav-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--r-md); color: var(--text-muted); font-weight: 550; cursor: pointer; }
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); border: 1px solid var(--border); }
+.nav-item.active i, .nav-item.active svg.lucide { color: var(--yolk-ink); }
+.nav-item .count { margin-left: auto; font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10.5px; color: var(--text-muted); }
+.nav-item .count.hot { color: var(--on-yolk); background: var(--yolk); padding: 1px 6px; border-radius: 99px; }
+.nav-sep { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); padding: 16px 10px 6px; }
+.loc { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: var(--r-sm); font-size: 13px; color: var(--text-muted); }
+.loc .dot { width: 7px; height: 7px; }
+.loc.offline { opacity: .65; }
+.loc .loc-meta { margin-left: auto; font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10px; }
+.sidebar .side-foot { margin-top: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px; display: grid; gap: 8px; font-size: 12px; }
+
+.main { display: grid; grid-template-rows: 56px 1fr; min-width: 0; min-height: 0; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--border); }
+.topbar .search { width: 380px; }
+.topbar .t-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.content { overflow: hidden; padding: 22px 24px; min-height: 0; }
+.page-title { font-family: var(--font-display); font-weight: 600; font-size: 28px; letter-spacing: -.02em; margin: 0; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 48; }
+
+/* overview */
+.ov-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.hero-card { padding: 22px; display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: center; position: relative; overflow: hidden; }
+.hero-card::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 260px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: var(--yolk-soft); opacity: .7; z-index: 0; }
+.hero-card > * { position: relative; z-index: 1; }
+.meter { width: 168px; height: 168px; position: relative; }
+.meter svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.meter .m-val { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.meter .m-val b { font-family: var(--font-display); font-size: 34px; font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variation-settings: "SOFT" 50, "opsz" 72; }
+.meter .m-val span { font-size: 11.5px; color: var(--text-muted); }
+.meter circle.arc { stroke-dasharray: 0 999; animation: fill 1.4s .3s var(--ease-out) forwards; }
+@keyframes fill { to { stroke-dasharray: var(--dash) 999; } }
+.hero-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 25px; letter-spacing: -.015em; line-height: 1.15; font-variation-settings: "SOFT" 100, "WONK" 1; }
+.hero-card p { margin: 6px 0 16px; color: var(--text-muted); }
+.hero-card > div:nth-child(2) { padding-right: 88px; }
+.hero-card .hen-peek { position: absolute; right: 16px; bottom: -6px; width: 92px; height: 92px; }
+.det-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.det { padding: 14px; display: grid; gap: 8px; cursor: pointer; transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2); }
+.det:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.det .d-top { display: flex; justify-content: space-between; align-items: center; }
+.det b { font-size: 13.5px; }
+.det .d-num { font-family: var(--font-display); font-size: 22px; font-weight: 650; letter-spacing: -.02em; font-variation-settings: "SOFT" 50; }
+.det .d-sub { font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; }
+.side-col { display: grid; gap: 16px; align-content: start; }
+.saved { padding: 18px; display: grid; gap: 4px; background: linear-gradient(135deg, var(--sage-soft), var(--surface) 70%); }
+.saved .t-big-number { color: var(--sage); }
+.sparkline { width: 100%; height: 40px; margin-top: 6px; }
+
+/* cleanup */
+.cl-grid { display: grid; grid-template-columns: minmax(0,1fr) 290px; grid-template-rows: auto minmax(0,1fr); gap: 14px; height: 100%; min-height: 0; }
+.det-list { grid-column: 1 / -1; display: flex; gap: 8px; overflow: hidden; padding: 2px;
+  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+.det-item { flex: none; display: flex; gap: 8px; align-items: center; height: 40px; padding: 0 12px 0 6px; border-radius: var(--r-pill); cursor: pointer;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.det-item:hover { background: var(--surface-2); }
+.det-item.active { background: var(--yolk-soft); border-color: color-mix(in srgb, var(--yolk-ink) 45%, transparent); box-shadow: var(--shadow-1); }
+.det-item .file-ico { width: 28px; height: 28px; border-radius: 50%; }
+.det-item .file-ico i, .det-item .file-ico svg.lucide { width: 14px; height: 14px; }
+.det-item > div { display: flex; gap: 6px; align-items: baseline; }
+.det-item .di-name { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.det-item .di-sub { font-size: 11.5px; color: var(--text-muted); }
+.det-item .mono { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+.cl-list { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+.cl-list .list { overflow: hidden; }
+.cl-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; }
+.action-bar { margin-top: 12px; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--text); color: var(--bg); box-shadow: var(--shadow-3); }
+.action-bar .ab-info b { font-weight: 650; }
+.action-bar .ab-info span { opacity: .7; font-size: 12.5px; margin-left: 6px; }
+.action-bar .btn-ghost { --b-fg: var(--bg); --b-hover: rgba(127,127,127,.18); }
+.action-bar .ab-right { margin-left: auto; display: flex; gap: 8px; }
+.preview-pane { display: grid; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
+.pv-hero { height: 170px; border-radius: var(--r-lg); display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, var(--yolk-soft), var(--surface-2) 70%); border: 1px solid var(--border); position: relative; }
+.pv-hero .pkg { width: 84px; height: 84px; border-radius: 22px; background: var(--surface); display: grid; place-items: center; box-shadow: var(--shadow-2); color: var(--cat-installer); transform: rotate(-4deg); }
+.pv-hero .pkg i, .pv-hero .pkg svg.lucide { width: 40px; height: 40px; }
+.pv-hero .ql { position: absolute; right: 10px; bottom: 10px; }
+.meta-list { display: grid; gap: 0; font-size: 12.5px; }
+.meta-list div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.meta-list dt { color: var(--text-muted); margin: 0; }
+.meta-list dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reason { background: var(--surface-2); border-radius: var(--r-md); padding: 10px 12px; font-size: 13px; display: grid; gap: 6px; border: 1px solid var(--border); }
+
+/* rename */
+.rn-grid { display: grid; grid-template-columns: 340px minmax(0,1fr); gap: 16px; height: 100%; min-height: 0; margin-top: 14px; }
+.steps { display: grid; gap: 8px; align-content: start; }
+.step { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px; display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; box-shadow: var(--shadow-1); }
+.step .s-num { width: 22px; height: 22px; border-radius: 50%; background: var(--yolk-soft); color: var(--yolk-ink); font-weight: 700; font-size: 11.5px; display: grid; place-items: center; }
+.step .s-body b { display: block; font-size: 13px; }
+.step .grip { color: var(--text-faint); cursor: grab; }
+.step .input { height: 28px; margin-top: 6px; }
+.add-step { border: 1.5px dashed var(--border-strong); border-radius: var(--r-md); padding: 10px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; justify-content: center; font-weight: 600; cursor: pointer; }
+.rn-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.rn-table th { text-align: left; font-weight: 600; color: var(--text-muted); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.rn-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.rn-table td.arrow { color: var(--text-faint); width: 24px; padding: 0; text-align: center; }
+.rn-table td .mono { font-size: 11.5px; }
+.rn-table tr.conflict td { background: var(--comb-soft); }
+.rn-table tr.conflict td .new { color: var(--comb); text-decoration: underline wavy color-mix(in srgb, var(--comb) 60%, transparent); text-underline-offset: 4px; }
+.rn-table .new mark { background: var(--yolk-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+.rn-table tr:last-child td { border-bottom: 0; }
+
+.compare { display: grid; gap: 16px; }
+@media (min-width: 1100px) { .compare { grid-template-columns: 1fr 1fr; } }
+.compare .frame { border-radius: 18px; padding: 14px; border: 1px solid var(--border); overflow: hidden; }
+.compare .frame-label { display: flex; align-items: center; gap: 8px; font-weight: 650; margin-bottom: 10px; }
+.compare .scale-box { width: 100%; overflow: hidden; position: relative; }
+.compare .scale-box .window { transform-origin: top left; position: absolute; top: 0; left: 0; }
+
+footer.doc-foot { padding: 48px 0 64px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+footer.doc-foot svg { width: 44px; height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .meter circle.arc { stroke-dasharray: var(--dash) 999; }
+}
+</style>
+</head>
+<body>
+
+<!-- Mascot parts, reused everywhere -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="hen-body" viewBox="0 0 64 64">
+      <path d="M23 15.5c-.6-3.6 2.2-6 4.8-4.8.9-3.2 5.3-4.1 7.2-1.2 2.6-2 6.6-.4 6.2 3.2 2.4.3 3.1 3.3 1 4.8z" fill="var(--comb)"/>
+      <path d="M32 13.5c11.2 0 18.6 8.8 18.6 20.2 0 10.3-8.3 18.3-18.6 18.3s-18.6-8-18.6-18.3c0-11.4 7.4-20.2 18.6-20.2z" fill="var(--hen)" stroke="var(--hen-line)" stroke-width="2.2"/>
+      <path d="M49.4 27.4l7.4 3.3-7.2 3.2z" fill="var(--beak)" stroke="var(--hen-line)" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M48.6 34.6c1.8.4 2.4 2.8.9 4.1-1.6 1.2-3.6-.3-3.2-2.2" fill="var(--comb)"/>
+      <path d="M17 32.5c.6 7.6 7.4 11.6 14.6 8.6 1.6-.7 1.2-2.3-.4-2.4-3.6-.3-6.2-2.2-7.6-5.2-1.3-2.7-6.8-3.6-6.6-1z" fill="var(--wing)" stroke="var(--hen-line)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M21.5 36.5c1.6 1.6 3.4 2.4 5.4 2.6" fill="none" stroke="var(--hen-line)" stroke-width="1.4" stroke-linecap="round" opacity=".55"/>
+      <path d="M27.5 52v6.2m-3.4 0h6.6M36.5 52v6.2m-3.4 0h6.6" stroke="var(--beak)" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="doc-bar">
+  <div class="page">
+    <a class="wordmark" href="#top" aria-label="Kipple">k<span class="i">ı</span>pple<small>Design system · v0.1</small></a>
+    <nav aria-label="Sections">
+      <a href="#foundations" data-t="nav.foundations">Foundations</a>
+      <a href="#components" data-t="nav.components">Components</a>
+      <a href="#patterns" data-t="nav.patterns">Patterns</a>
+      <a href="#screens" data-t="nav.screens">Screens</a>
+    </nav>
+    <div class="controls">
+      <div class="segmented" role="group" aria-label="Language" id="langSwitch">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="nl" aria-pressed="false">NL</button>
+      </div>
+      <div class="segmented" role="group" aria-label="Theme" id="themeSwitch">
+        <button type="button" data-theme-set="light" aria-pressed="false" title="Light"><i data-lucide="sun"></i><span class="sr-only">Light</span></button>
+        <button type="button" data-theme-set="dark" aria-pressed="false" title="Dark"><i data-lucide="moon"></i><span class="sr-only">Dark</span></button>
+        <button type="button" data-theme-set="system" aria-pressed="true" title="System"><i data-lucide="monitor"></i><span class="sr-only">System</span></button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="page" id="top">
+
+  <!-- ============================== HERO ============================== -->
+  <section class="hero">
+    <div>
+      <div class="eyebrow reveal">Kipple · visual language</div>
+      <h1 class="reveal"><span data-t="hero.title1">Fight the</span> <em data-t="hero.title2">kipple.</em></h1>
+      <p class="lead reveal" data-t="hero.lead">Warm, calm and a little cheeky. This is the visual language of Kipple, the open-source file organiser for Linux, macOS and Windows. Eggshell and yolk by day, a night coop by night.</p>
+      <div class="principles reveal">
+        <span class="principle"><i data-lucide="shield-check"></i><span data-t="pr.calm">Calm when it matters</span></span>
+        <span class="principle"><i data-lucide="egg"></i><span data-t="pr.cheeky">Cheeky when it doesn't</span></span>
+        <span class="principle"><i data-lucide="binary"></i><span data-t="pr.mono">Data speaks mono</span></span>
+        <span class="principle"><i data-lucide="undo-2"></i><span data-t="pr.undo">Everything undoable</span></span>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="egg-bg"></div>
+      <svg class="hen-xl" viewBox="0 0 64 64"><use href="#hen-body"/><circle cx="41.5" cy="26" r="2.4" fill="var(--hen-line)"/><circle cx="42.3" cy="25.2" r=".8" fill="#fff"/></svg>
+      <div class="speech" data-t="hero.speech">4.3 GB of kipple found! 🥚</div>
+    </div>
+  </section>
+
+  <!-- ============================== FOUNDATIONS ============================== -->
+  <section class="block" id="foundations">
+    <div class="block-head">
+      <div class="num">01</div>
+      <div>
+        <h2 data-t="f.title">Foundations</h2>
+        <p data-t="f.lead">Colour, type, shape and the hen. All colours are semantic tokens with a light and a dark value. Components never use raw hex values.</p>
+      </div>
+    </div>
+
+    <div class="sub-h">Colour tokens</div>
+    <div class="grid-2" id="swatchPanels">
+      <div class="theme-panel theme-light">
+        <h3><i data-lucide="sun"></i> Eggshell <span class="badge" style="--c: var(--text-muted)">light</span></h3>
+        <div class="swatches" data-swatches></div>
+      </div>
+      <div class="theme-panel theme-dark">
+        <h3><i data-lucide="moon"></i> Night coop <span class="badge" style="--c: var(--text-muted)">dark</span></h3>
+        <div class="swatches" data-swatches></div>
+      </div>
+    </div>
+    <p class="note"><b>Rules:</b> Yolk is the one accent and is reserved for primary actions, selection and the brand. Comb (red) is <b>only</b> for destructive actions (Trash, delete). Sage means "keep / space saved". Confidence is shown with eggs, never with red/green, so it stays readable for colour-blind users. All text pairs meet WCAG AA (≥ 4.5:1); body text is 15–17:1.</p>
+
+    <div class="sub-h">File type colours</div>
+    <div class="specimen">
+      <div class="row">
+        <span class="badge cat-image"><i data-lucide="image"></i>Images</span>
+        <span class="badge cat-shot"><i data-lucide="monitor"></i>Screenshots</span>
+        <span class="badge cat-video"><i data-lucide="film"></i>Videos</span>
+        <span class="badge cat-audio"><i data-lucide="music"></i>Audio</span>
+        <span class="badge cat-doc"><i data-lucide="file-text"></i>Documents</span>
+        <span class="badge cat-archive"><i data-lucide="archive"></i>Archives</span>
+        <span class="badge cat-installer"><i data-lucide="package"></i>Installers</span>
+        <span class="badge cat-code"><i data-lucide="code"></i>Code</span>
+      </div>
+      <p class="note">Type colours are muted on purpose: they help scanning lists, but never compete with Yolk or Comb. A chip always pairs colour with an icon and a label.</p>
+    </div>
+
+    <div class="sub-h">Typography</div>
+    <div class="specimen">
+      <div class="type-row"><div class="spec">Display · Fraunces 650<br>48/1.0 · SOFT 100 · WONK 1</div><div class="t-display">Weg met de kipple.</div></div>
+      <div class="type-row"><div class="spec">Title · Fraunces 600<br>26/1.15</div><div class="t-title">4.3 GB of kipple found in your Downloads</div></div>
+      <div class="type-row"><div class="spec">Big number · Fraunces 700<br>40 · tabular</div><div class="t-big-number">14.2 GB</div></div>
+      <div class="type-row"><div class="spec">Heading · Instrument Sans 650<br>16/1.4</div><div class="t-heading">Old installers</div></div>
+      <div class="type-row"><div class="spec">Body · Instrument Sans 400<br>14/1.5 (desktop density)</div><div class="t-body">Installer, 214 days old. Zoom appears to be installed, so this file is probably safe to remove.</div></div>
+      <div class="type-row"><div class="spec">Small · Instrument Sans 400<br>12.5/1.45</div><div class="t-small">Last opened 7 months ago · signal: Spotlight</div></div>
+      <div class="type-row"><div class="spec">Data · Martian Mono 400<br>12.5 · width 87.5%</div><div class="t-data">~/Downloads/Zoom_6.2.1.dmg · 128.4 MB · 2026-03-19 10:22</div></div>
+    </div>
+    <p class="note"><b>Fraunces</b> (soft, slightly wonky serif) gives warmth to titles and numbers. <b>Instrument Sans</b> keeps the UI crisp at small sizes. <b>Martian Mono</b> (a quiet nod to Philip K. Dick's Mars) is used for paths, sizes, dates and tokens. All three are OFL licensed and bundled with the app, never loaded from the web.</p>
+
+    <div class="sub-h">Shape, space & elevation</div>
+    <div class="grid-3">
+      <div class="specimen stack">
+        <span class="label-sm">Radius</span>
+        <div class="radius-demo">
+          <div style="border-radius: var(--r-sm)">sm 6</div><div style="border-radius: var(--r-md)">md 10</div>
+          <div style="border-radius: var(--r-lg)">lg 16</div><div style="border-radius: var(--r-xl)">xl 22</div>
+          <div style="border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%">egg</div>
+        </div>
+      </div>
+      <div class="specimen stack">
+        <span class="label-sm">Spacing (4 px base)</span>
+        <div class="space-demo">
+          <div><span style="width:4px"></span>1 · 4</div><div><span style="width:8px"></span>2 · 8</div><div><span style="width:12px"></span>3 · 12</div>
+          <div><span style="width:16px"></span>4 · 16</div><div><span style="width:24px"></span>6 · 24</div><div><span style="width:32px"></span>8 · 32</div><div><span style="width:48px"></span>12 · 48</div>
+        </div>
+      </div>
+      <div class="specimen stack">
+        <span class="label-sm">Elevation</span>
+        <div class="elev-demo">
+          <div style="box-shadow: var(--shadow-1)">1 · rows, cards</div>
+          <div style="box-shadow: var(--shadow-2)">2 · hover, popovers</div>
+          <div style="box-shadow: var(--shadow-3)">3 · dialogs, toasts</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-h">The hen ("Kip")</div>
+    <div class="mascots">
+      <div class="mascot-card">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><circle cx="41.5" cy="26" r="2.4" fill="var(--hen-line)"/></svg>
+        <b>Idle</b><span>Onboarding, about</span>
+      </div>
+      <div class="mascot-card">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><path d="M38.6 27c1.2-2.4 4.4-2.4 5.6 0" fill="none" stroke="var(--hen-line)" stroke-width="2.2" stroke-linecap="round"/><path d="M8 18l2 2m-4 4h3M12 12l1 3" stroke="var(--yolk)" stroke-width="2" stroke-linecap="round"/></svg>
+        <b>Happy</b><span>Space saved, all clean</span>
+      </div>
+      <div class="mascot-card">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><path d="M38.6 26.4c1.2 1.6 4.4 1.6 5.6 0" fill="none" stroke="var(--hen-line)" stroke-width="2.2" stroke-linecap="round"/><text x="50" y="12" font-family="Fraunces, serif" font-weight="700" font-size="9" fill="var(--text-muted)">z</text><text x="56" y="6" font-family="Fraunces, serif" font-weight="700" font-size="6" fill="var(--text-muted)">z</text></svg>
+        <b>Sleeping</b><span>Automation paused, tray</span>
+      </div>
+      <div class="mascot-card">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><circle cx="41.5" cy="26" r="3.4" fill="#fff" stroke="var(--hen-line)" stroke-width="1.6"/><circle cx="42" cy="26" r="1.6" fill="var(--hen-line)"/><path d="M8 10v9" stroke="var(--amber)" stroke-width="3" stroke-linecap="round"/><circle cx="8" cy="24" r="1.8" fill="var(--amber)"/></svg>
+        <b>Alert</b><span>Recovery, offline drive</span>
+      </div>
+      <div class="mascot-card">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><circle cx="41.5" cy="26" r="2.4" fill="var(--hen-line)"/><ellipse cx="14" cy="48" rx="5" ry="6.4" fill="var(--hen)" stroke="var(--hen-line)" stroke-width="1.8"/><ellipse cx="9" cy="54" rx="4" ry="5" fill="var(--yolk-soft)" stroke="var(--hen-line)" stroke-width="1.6"/></svg>
+        <b>Nesting</b><span>Empty states, scanning</span>
+      </div>
+    </div>
+    <p class="note">The hen appears in onboarding, empty states, success moments and the app icon. <b>Never in warnings about deleting files</b>: the safety voice stays calm and serious.</p>
+
+    <div class="sub-h">Icons</div>
+    <div class="icon-grid">
+      <div><i data-lucide="layout-dashboard"></i>Overview</div>
+      <div><i data-lucide="folder-open"></i>Browse</div>
+      <div><i data-lucide="sparkles"></i>Cleanup</div>
+      <div><i data-lucide="pencil-line"></i>Rename</div>
+      <div><i data-lucide="folder-tree"></i>Tidy</div>
+      <div><i data-lucide="workflow"></i>Rules</div>
+      <div><i data-lucide="history"></i>History</div>
+      <div><i data-lucide="settings"></i>Settings</div>
+      <div><i data-lucide="trash-2"></i>Trash</div>
+      <div><i data-lucide="undo-2"></i>Undo</div>
+      <div><i data-lucide="pin"></i>Pin / keep</div>
+      <div><i data-lucide="copy"></i>Duplicate</div>
+      <div><i data-lucide="cloud"></i>Online only</div>
+      <div><i data-lucide="hard-drive"></i>Drive</div>
+      <div><i data-lucide="wifi-off"></i>Offline</div>
+      <div><i data-lucide="lock"></i>Locked</div>
+    </div>
+    <p class="note"><b>Lucide</b> (ISC licence), 1.9 px stroke, 16 px in UI and 20 px in dialogs. An icon never stands alone without a label or tooltip.</p>
+  </section>
+
+  <!-- ============================== COMPONENTS ============================== -->
+  <section class="block" id="components">
+    <div class="block-head">
+      <div class="num">02</div>
+      <div>
+        <h2 data-t="c.title">Components</h2>
+        <p data-t="c.lead">The building blocks, implemented in the app with Radix primitives and Tailwind tokens. Every interactive element has hover, active, focus-visible and disabled states.</p>
+      </div>
+    </div>
+
+    <div class="sub-h">Buttons</div>
+    <div class="specimen stack">
+      <div class="row">
+        <button class="btn btn-primary"><i data-lucide="sparkles"></i><span data-t="btn.review">Review cleanup</span></button>
+        <button class="btn"><i data-lucide="refresh-cw"></i><span data-t="btn.scan">Scan now</span></button>
+        <button class="btn btn-ghost"><span data-t="btn.cancel">Cancel</span></button>
+        <button class="btn btn-keep"><i data-lucide="pin"></i><span data-t="btn.keep">Keep</span></button>
+        <button class="btn btn-danger-soft"><i data-lucide="trash-2"></i><span data-t="btn.trash">Move to Trash</span></button>
+        <button class="btn btn-danger"><i data-lucide="trash-2"></i><span data-t="btn.trashN">Move 142 files to Trash</span></button>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-lg"><span data-t="btn.start">Start first scan</span><kbd>↵</kbd></button>
+        <button class="btn btn-sm"><i data-lucide="eye"></i>Quick look <kbd>Space</kbd></button>
+        <button class="btn btn-icon" aria-label="Undo"><i data-lucide="undo-2"></i></button>
+        <button class="btn btn-sm btn-icon btn-ghost" aria-label="More"><i data-lucide="more-horizontal"></i></button>
+        <button class="btn" disabled><span class="spinner"></span>Scanning…</button>
+        <button class="btn btn-primary" disabled>Disabled</button>
+      </div>
+      <p class="note"><b>Primary</b> (Yolk) appears once per view. <b>Destructive</b> buttons always state the count ("Move 142 files to Trash"), never just "OK". The label follows the OS: <span class="mono">Trash</span> (macOS, Linux), <span class="mono">Recycle Bin</span> (Windows), <span class="mono">Prullenmand</span> / <span class="mono">Prullenbak</span> in Dutch.</p>
+    </div>
+
+    <div class="sub-h">Inputs & selection</div>
+    <div class="grid-2">
+      <div class="specimen stack">
+        <div class="search"><i data-lucide="search"></i><input class="input" placeholder="Search files…" data-tp="search.ph" aria-label="Search"><kbd>⌘K</kbd></div>
+        <div class="field"><label for="f1">Find</label><input id="f1" class="input mono" value="IMG_"></div>
+        <div class="field"><label for="f2">New name</label><input id="f2" class="input mono invalid" value="report:final?.pdf"><span class="help error"><i data-lucide="alert-circle"></i>Windows doesn't allow <span class="mono">: ?</span> in file names</span></div>
+        <div class="field"><label for="f3">Stale after</label><select id="f3" class="input"><option>6 months</option><option>1 year</option><option>2 years</option></select></div>
+      </div>
+      <div class="specimen stack">
+        <label class="check"><input type="checkbox" checked> Desktop</label>
+        <label class="check"><input type="checkbox" checked> Downloads</label>
+        <label class="check"><input type="checkbox" class="indet"> Documents <span class="faint">(some folders)</span></label>
+        <label class="check"><input type="radio" name="r" checked> Keep both <span class="faint">(add “(2)”)</span></label>
+        <label class="check"><input type="radio" name="r"> Replace</label>
+        <label class="switch"><input type="checkbox" checked> Launch at login</label>
+        <label class="switch"><input type="checkbox"> Pause all automation</label>
+        <div class="field"><label>Screenshot age <span class="mono muted">· 30 days</span></label><input type="range" class="slider" value="30" min="0" max="90" style="--v:33%" aria-label="Screenshot age"></div>
+        <div class="segmented" role="group" aria-label="View"><button aria-pressed="true"><i data-lucide="list"></i>List</button><button aria-pressed="false"><i data-lucide="layout-grid"></i>Grid</button><button aria-pressed="false"><i data-lucide="columns-3"></i>Columns</button></div>
+      </div>
+    </div>
+
+    <div class="sub-h">Badges, status & confidence</div>
+    <div class="specimen stack">
+      <div class="row">
+        <span class="badge st-active"><span class="dot"></span>Active</span>
+        <span class="badge st-stale"><span class="dot"></span>Stale</span>
+        <span class="badge st-candidate"><span class="dot"></span>Cleanup candidate</span>
+        <span class="badge st-pinned"><i data-lucide="pin"></i>Pinned</span>
+        <span class="badge" style="--c: var(--sky)"><i data-lucide="cloud"></i>Online only</span>
+        <span class="badge" style="--c: var(--text-muted)"><i data-lucide="wifi-off"></i>Offline</span>
+        <span class="badge" style="--c: var(--amber)"><i data-lucide="lock"></i>Open in Word</span>
+      </div>
+      <div class="row">
+        <span class="conf" data-level="3" title="High confidence"><span></span><span></span><span></span><b>High</b></span>
+        <span class="conf" data-level="2" title="Medium confidence"><span></span><span></span><span></span><b>Medium</b></span>
+        <span class="conf" data-level="1" title="Low confidence"><span></span><span></span><span></span><b>Low</b></span>
+        <span class="tooltip">Duplicate of ~/Documents/cv.pdf</span>
+      </div>
+    </div>
+
+    <div class="sub-h">Feedback</div>
+    <div class="grid-2">
+      <div class="stack">
+        <div class="banner recovery"><i data-lucide="life-buoy"></i>
+          <div class="b-body"><b>Kipple was interrupted while moving 38 files</b><span>21 are done, 17 are not. Nothing was lost.</span></div>
+          <div class="b-actions"><button class="btn btn-sm btn-primary">Resume</button><button class="btn btn-sm">Roll back</button></div>
+        </div>
+        <div class="banner info"><i data-lucide="cloud"></i>
+          <div class="b-body"><b>Your Desktop is synced by OneDrive</b><span>Changes here sync to all your devices. Online-only files are never downloaded.</span></div>
+        </div>
+        <div class="banner warn"><i data-lucide="hard-drive"></i>
+          <div class="b-body"><b>“Backup SSD” is offline</b><span>Its 48,210 files are kept in the index. Connect the drive to see them again.</span></div>
+        </div>
+        <div class="banner ok"><i data-lucide="trash-2"></i>
+          <div class="b-body"><b><span data-bytes="3200000000">3.2 GB</span> is now in your Trash</b><span>Space is freed once you empty the Trash.</span></div>
+          <div class="b-actions"><button class="btn btn-sm btn-ghost">Open Trash</button></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="specimen stack">
+          <div style="display:flex; justify-content:space-between; gap:12px"><b>Scanning Downloads…</b><span class="mono muted">48,210 / 112,904</span></div>
+          <div class="progress" style="--p: 43%"><span></span></div>
+          <div style="display:flex; justify-content:space-between" class="t-small"><span>~/Downloads/Projects/2024/client-x</span><span>about 40 s left</span></div>
+        </div>
+        <div><span class="toast"><i data-lucide="check-circle-2" class="ok"></i><span>Moved 142 files to Trash</span><button class="btn">Undo</button><button class="btn btn-icon t-x" aria-label="Dismiss" style="width:28px"><i data-lucide="x"></i></button></span></div>
+        <div class="banner danger"><i data-lucide="alert-triangle"></i>
+          <div class="b-body"><b>12 files were skipped</b><span>3 are open in Word, 9 need permission.</span></div>
+          <div class="b-actions"><button class="btn btn-sm">Show files</button><button class="btn btn-sm">Retry</button></div>
+        </div>
+        <div class="specimen stack"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:45%"></div><div class="skeleton" style="width:58%"></div></div>
+      </div>
+    </div>
+
+    <div class="sub-h">Dialogs</div>
+    <div class="grid-3 dialog-grid">
+      <div class="dialog" role="dialog" aria-labelledby="d1">
+        <header><div class="d-icon"><i data-lucide="sparkles"></i></div><div><h4 id="d1">Move 142 files to Trash?</h4><p>You can undo this from History at any time.</p></div></header>
+        <div class="d-body">
+          <div class="summary-list">
+            <div><span>Duplicates</span><span class="mono">96 · 1.8 GB</span></div>
+            <div><span>Old installers</span><span class="mono">14 · 1.1 GB</span></div>
+            <div><span>Old screenshots</span><span class="mono">32 · 0.3 GB</span></div>
+            <div><b>Total</b><b class="mono" style="color:var(--text)">142 · 3.2 GB</b></div>
+          </div>
+        </div>
+        <footer><button class="btn btn-ghost">Cancel</button><button class="btn btn-danger"><i data-lucide="trash-2"></i>Move 142 files to Trash</button></footer>
+      </div>
+
+      <div class="dialog" role="dialog" aria-labelledby="d2" style="--c: var(--amber); --c-soft: var(--amber-soft)">
+        <header><div class="d-icon"><i data-lucide="files"></i></div><div><h4 id="d2">“invoice-2026-03.pdf” already exists</h4><p>In ~/Documents/Invoices</p></div></header>
+        <div class="d-body">
+          <div class="conflict-pair">
+            <div><div class="thumb doc"></div><b>Moving</b><span class="mono muted">212 KB · 14 Mar</span></div>
+            <div><div class="thumb doc"></div><b>Existing</b><span class="mono muted">208 KB · 12 Mar</span></div>
+          </div>
+          <label class="choice"><input type="radio" name="c" checked><b>Keep both</b><small>Rename to “invoice-2026-03 (2).pdf”</small></label>
+          <label class="choice"><input type="radio" name="c"><b>Replace</b><small>The existing file goes to the Trash</small></label>
+          <label class="choice"><input type="radio" name="c"><b>Skip</b><small>Leave this file where it is</small></label>
+          <label class="check"><input type="checkbox"> Do this for the 4 other conflicts</label>
+        </div>
+        <footer><button class="btn btn-ghost">Cancel</button><button class="btn btn-primary">Continue</button></footer>
+      </div>
+
+      <div class="dialog" role="dialog" aria-labelledby="d3" style="--c: var(--comb); --c-soft: var(--comb-soft)">
+        <header><div class="d-icon"><i data-lucide="alert-octagon"></i></div><div><h4 id="d3">This drive has no Trash</h4><p>“NAS · photos” is a network share. Files deleted here are gone for good and can't be undone.</p></div></header>
+        <div class="d-body">
+          <div class="summary-list"><div><span>Files</span><span class="mono">23 · 4.6 GB</span></div></div>
+          <div class="field"><label for="d3i">Type <span class="mono">delete 23</span> to confirm</label><input id="d3i" class="input mono" placeholder="delete 23"></div>
+          <span class="help">Tip: move them to a drive with a Trash first, or keep them.</span>
+        </div>
+        <footer><button class="btn btn-ghost">Keep files</button><button class="btn btn-danger" disabled>Delete permanently</button></footer>
+      </div>
+    </div>
+    <p class="note">Dialogs are only for decisions. The safety dialogs (permanent delete, recovery) use plain, calm words, no jokes and no hen. The confirm button for a permanent delete stays disabled until the phrase is typed.</p>
+  </section>
+
+  <!-- ============================== PATTERNS ============================== -->
+  <section class="block" id="patterns">
+    <div class="block-head">
+      <div class="num">03</div>
+      <div>
+        <h2 data-t="p.title">Patterns</h2>
+        <p data-t="p.lead">Composite pieces that appear on several screens: file rows, cleanup candidates, the duplicate resolver, history entries, rule cards and empty states.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="stack">
+        <span class="label-sm">File row / cleanup candidate</span>
+        <div class="list">
+          <div class="list-row selected">
+            <label class="check"><input type="checkbox" checked aria-label="Select"></label>
+            <div class="file-ico cat-installer"><i data-lucide="package"></i></div>
+            <div style="min-width:0"><div class="f-name">Zoom_6.2.1.dmg</div><div class="f-sub"><span>Installer, 214 days old · Zoom appears installed</span></div></div>
+            <div class="f-right"><span class="conf" data-level="3"><span></span><span></span><span></span></span><span class="f-size">128.4 MB</span></div>
+          </div>
+          <div class="list-row">
+            <label class="check"><input type="checkbox" aria-label="Select"></label>
+            <div class="file-ico cat-shot"><i data-lucide="monitor"></i></div>
+            <div style="min-width:0"><div class="f-name">Schermafbeelding 2026-03-14 om 10.22.31.png</div><div class="f-sub"><span>Screenshot, 7 months old</span></div></div>
+            <div class="f-right"><span class="conf" data-level="2"><span></span><span></span><span></span></span><span class="f-size">2.1 MB</span></div>
+          </div>
+          <div class="list-row disabled">
+            <label class="check"><input type="checkbox" disabled aria-label="Select"></label>
+            <div class="file-ico" style="--c: var(--sky)"><i data-lucide="cloud"></i></div>
+            <div style="min-width:0"><div class="f-name">Setup_Office.exe</div><div class="f-sub"><span class="badge" style="--c: var(--sky)">Online only</span><span>Not downloaded, so not checked</span></div></div>
+            <div class="f-right"><span class="f-size">—</span></div>
+          </div>
+        </div>
+
+        <span class="label-sm" style="margin-top:12px">History</span>
+        <div class="list">
+          <div class="history-item"><div class="h-dot" style="--c: var(--comb)"><i data-lucide="trash-2"></i></div><div><b>Moved 142 files to Trash</b><div class="t-small">Today 14:02 · Cleanup · <span class="mono">3.2 GB</span></div></div><button class="btn btn-sm"><i data-lucide="undo-2"></i>Undo</button></div>
+          <div class="history-item"><div class="h-dot" style="--c: var(--yolk-ink)"><i data-lucide="workflow"></i></div><div><b>“Screenshots tidy” moved 12 files</b><div class="t-small">Today 09:15 · Rule, automatic</div></div><button class="btn btn-sm"><i data-lucide="undo-2"></i>Undo</button></div>
+          <div class="history-item"><div class="h-dot" style="--c: var(--sky)"><i data-lucide="pencil-line"></i></div><div><b>Renamed 48 photos</b><div class="t-small">Yesterday 21:40 · Batch rename · <span class="muted">1 skipped</span></div></div><button class="btn btn-sm"><i data-lucide="undo-2"></i>Undo</button></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <span class="label-sm">Duplicate resolver</span>
+        <div class="dup-group">
+          <div class="dup-head"><div><b>3 identical copies</b> <span class="mono muted">· 14.8 MB each</span></div><div class="row"><span class="label-sm">Keep:</span><select class="input" style="width:auto; height:28px; font-size:12.5px"><option>Oldest</option><option>Shortest path</option><option>In Documents</option></select></div></div>
+          <div class="dup-cards">
+            <div class="dup-card keep"><div class="thumb photo-a"></div><span class="badge solid tag" style="--c: var(--sage)"><i data-lucide="check"></i>Keep</span><b style="font-size:12.5px">Toscane-001.jpg</b><span class="path">~/Pictures/2026/Toscane</span></div>
+            <div class="dup-card"><div class="thumb photo-a"></div><b style="font-size:12.5px">IMG_4821.JPG</b><span class="path">~/Downloads</span></div>
+            <div class="dup-card"><div class="thumb photo-a"></div><b style="font-size:12.5px">IMG_4821 (1).JPG</b><span class="path">~/Desktop/sort later</span></div>
+          </div>
+        </div>
+
+        <span class="label-sm" style="margin-top:12px">Rule cards (recommended, off by default)</span>
+        <div class="rule-card">
+          <div class="rule-head"><div class="file-ico" style="--c: var(--yolk-ink)"><i data-lucide="monitor"></i></div><div class="r-title"><b>Screenshots tidy</b><span class="t-small">Runs on new files · automatic · last run 09:15</span></div><label class="switch"><input type="checkbox" checked aria-label="Enabled"></label></div>
+          <div class="rule-flow"><span class="token">{Desktop}</span><span class="muted">screenshots →</span><i data-lucide="arrow-right"></i><span class="token">{Pictures}/Screenshots/{year}-{month}</span></div>
+        </div>
+        <div class="rule-card off">
+          <div class="rule-head"><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div class="r-title"><b>Clear old installers</b><span class="t-small">Recommended · off · would trash 14 files now</span></div><label class="switch"><input type="checkbox" aria-label="Enabled"></label></div>
+          <div class="rule-flow"><span class="token">{Downloads}</span><span class="muted">installers older than 30 days →</span><i data-lucide="arrow-right"></i><span class="token">Trash</span><button class="btn btn-sm btn-ghost" style="margin-left:auto"><i data-lucide="eye"></i>Preview</button></div>
+        </div>
+
+        <span class="label-sm" style="margin-top:12px">Empty state</span>
+        <div class="card empty">
+          <svg class="hen" viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><path d="M38.6 27c1.2-2.4 4.4-2.4 5.6 0" fill="none" stroke="var(--hen-line)" stroke-width="2.2" stroke-linecap="round"/><path d="M8 18l2 2m-4 4h3M12 12l1 3" stroke="var(--yolk)" stroke-width="2" stroke-linecap="round"/></svg>
+          <h5 data-t="empty.title">Not a speck of kipple.</h5>
+          <p data-t="empty.body">Your Downloads folder is spotless. Kipple will tell you when new clutter piles up.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== SCREENS ============================== -->
+  <section class="block" id="screens">
+    <div class="block-head">
+      <div class="num">04</div>
+      <div>
+        <h2 data-t="s.title">Screens</h2>
+        <p data-t="s.lead">Key MVP screens at desktop size (1180 × 740). Switch EN/NL at the top to check that layouts survive longer Dutch labels and decimal commas.</p>
+      </div>
+    </div>
+
+    <div class="segmented screen-tabs" role="tablist" aria-label="Screens" id="screenTabs">
+      <button role="tab" aria-pressed="true" data-screen="overview"><i data-lucide="layout-dashboard"></i><span data-t="nav.overview">Overview</span></button>
+      <button role="tab" aria-pressed="false" data-screen="cleanup"><i data-lucide="sparkles"></i><span data-t="nav.cleanup">Cleanup</span></button>
+      <button role="tab" aria-pressed="false" data-screen="rename"><i data-lucide="pencil-line"></i><span data-t="nav.rename">Rename</span></button>
+    </div>
+
+    <div class="window-scroller">
+      <div class="window" id="appWindow">
+        <div class="titlebar"><div class="lights"><span></span><span></span><span></span></div><span class="t-center">Kipple</span></div>
+        <div class="app">
+          <aside class="sidebar">
+            <span class="wordmark">k<span class="i">ı</span>pple</span>
+            <div class="nav-item" data-nav="overview"><i data-lucide="layout-dashboard"></i><span data-t="nav.overview">Overview</span></div>
+            <div class="nav-item"><i data-lucide="folder-open"></i><span data-t="nav.browse">Browse</span></div>
+            <div class="nav-item" data-nav="cleanup"><i data-lucide="sparkles"></i><span data-t="nav.cleanup">Cleanup</span><span class="count hot" data-bytes="4300000000">4.3 GB</span></div>
+            <div class="nav-item" data-nav="rename"><i data-lucide="pencil-line"></i><span data-t="nav.rename">Rename</span></div>
+            <div class="nav-item"><i data-lucide="folder-tree"></i><span data-t="nav.tidy">Tidy</span></div>
+            <div class="nav-item"><i data-lucide="history"></i><span data-t="nav.history">History</span></div>
+            <div class="nav-sep" data-t="nav.locations">Locations</div>
+            <div class="loc"><span class="dot" style="--c: var(--sage)"></span>Desktop<span class="loc-meta">2.1k</span></div>
+            <div class="loc"><span class="dot" style="--c: var(--sage)"></span>Downloads<span class="loc-meta">8.4k</span></div>
+            <div class="loc"><span class="dot" style="--c: var(--sage)"></span>Documents<span class="loc-meta">31k</span></div>
+            <div class="loc"><span class="dot" style="--c: var(--sage)"></span>Pictures<span class="loc-meta">18k</span></div>
+            <div class="loc offline"><span class="dot" style="--c: var(--text-faint)"></span>Backup SSD<i data-lucide="wifi-off" style="margin-left:auto; width:13px; height:13px"></i></div>
+            <div class="side-foot">
+              <div style="display:flex; gap:8px; align-items:center"><i data-lucide="check-circle-2" style="color: var(--sage)"></i><span data-t="side.scanned">Scanned 2 min ago</span></div>
+              <div class="nav-item" style="height:28px; padding:0"><i data-lucide="settings"></i><span data-t="nav.settings">Settings</span></div>
+            </div>
+          </aside>
+
+          <div class="main">
+            <div class="topbar">
+              <div class="search"><i data-lucide="search"></i><input class="input" placeholder="Search files…" data-tp="search.ph" aria-label="Search"><kbd>⌘K</kbd></div>
+              <div class="t-right">
+                <button class="btn btn-sm"><i data-lucide="refresh-cw"></i><span data-t="btn.scan">Scan now</span></button>
+                <button class="btn btn-sm btn-icon btn-ghost" aria-label="History"><i data-lucide="history"></i></button>
+              </div>
+            </div>
+
+            <!-- OVERVIEW -->
+            <div class="content" data-screen-panel="overview">
+              <h3 class="page-title" data-t="ov.title">Good afternoon. Here's your kipple.</h3>
+              <div class="ov-grid">
+                <div>
+                  <div class="card hero-card">
+                    <div class="meter">
+                      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="var(--surface-3)" stroke-width="10"/><circle class="arc" cx="50" cy="50" r="42" fill="none" stroke="var(--yolk)" stroke-width="10" stroke-linecap="round" style="--dash: 63"/></svg>
+                      <div class="m-val"><b data-bytes="4300000000" data-unitless>4.3</b><span>GB · <span data-t="ov.ofTotal">of 18 GB scanned</span></span></div>
+                    </div>
+                    <div>
+                      <h3><span data-t="ov.found1">kipple found in</span> <span data-num="1284">1,284</span> <span data-t="ov.found2">files</span></h3>
+                      <p data-t="ov.found.p">Mostly duplicates and old installers in Downloads. Everything goes to the Trash, so you can undo.</p>
+                      <div class="row"><button class="btn btn-primary"><i data-lucide="sparkles"></i><span data-t="btn.review">Review cleanup</span></button><button class="btn btn-ghost"><span data-t="btn.triage">Quick triage</span> <kbd>T</kbd></button></div>
+                    </div>
+                    <svg class="hen-peek" viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><circle cx="41.5" cy="26" r="2.4" fill="var(--hen-line)"/></svg>
+                  </div>
+                  <div class="det-grid">
+                    <div class="card det"><div class="d-top"><span class="file-ico" style="--c: var(--cat-doc)"><i data-lucide="copy"></i></span><span class="conf" data-level="3"><span></span><span></span><span></span></span></div><b data-t="det.dup">Duplicates</b><div class="d-num" data-bytes="1800000000">1.8 GB</div><div class="d-sub"><span><span data-num="212">212</span> <span data-t="files">files</span></span></div></div>
+                    <div class="card det"><div class="d-top"><span class="file-ico cat-installer"><i data-lucide="package"></i></span><span class="conf" data-level="3"><span></span><span></span><span></span></span></div><b data-t="det.inst">Old installers</b><div class="d-num" data-bytes="1100000000">1.1 GB</div><div class="d-sub"><span><span data-num="14">14</span> <span data-t="files">files</span></span></div></div>
+                    <div class="card det"><div class="d-top"><span class="file-ico" style="--c: var(--amber)"><i data-lucide="hard-drive"></i></span><span class="conf" data-level="2"><span></span><span></span><span></span></span></div><b data-t="det.large">Large &amp; old files</b><div class="d-num" data-bytes="900000000">0.9 GB</div><div class="d-sub"><span><span data-num="9">9</span> <span data-t="files">files</span></span></div></div>
+                    <div class="card det"><div class="d-top"><span class="file-ico cat-shot"><i data-lucide="monitor"></i></span><span class="conf" data-level="2"><span></span><span></span><span></span></span></div><b data-t="det.shots">Old screenshots</b><div class="d-num" data-bytes="400000000">0.4 GB</div><div class="d-sub"><span><span data-num="318">318</span> <span data-t="files">files</span></span></div></div>
+                    <div class="card det"><div class="d-top"><span class="file-ico" style="--c: var(--sky)"><i data-lucide="download"></i></span><span class="conf" data-level="3"><span></span><span></span><span></span></span></div><b data-t="det.partial">Unfinished downloads</b><div class="d-num" data-bytes="52000000">52 MB</div><div class="d-sub"><span><span data-num="6">6</span> <span data-t="files">files</span></span></div></div>
+                    <div class="card det"><div class="d-top"><span class="file-ico cat-archive"><i data-lucide="archive"></i></span><span class="conf" data-level="2"><span></span><span></span><span></span></span></div><b data-t="det.extracted">Already extracted</b><div class="d-num" data-bytes="38000000">38 MB</div><div class="d-sub"><span><span data-num="4">4</span> <span data-t="files">files</span></span></div></div>
+                  </div>
+                </div>
+                <div class="side-col">
+                  <div class="card saved">
+                    <span class="label-sm" data-t="ov.saved">Space saved since March</span>
+                    <span class="t-big-number" data-bytes="14200000000">14.2 GB</span>
+                    <span class="t-small"><span data-num="3210">3,210</span> <span data-t="ov.tidied">files tidied</span></span>
+                    <svg class="sparkline" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 L25 33 L50 34 L75 26 L100 24 L125 18 L150 15 L175 8 L200 5" fill="none" stroke="var(--sage)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 36 L25 33 L50 34 L75 26 L100 24 L125 18 L150 15 L175 8 L200 5 L200 40 L0 40Z" fill="var(--sage)" opacity=".12"/></svg>
+                  </div>
+                  <div class="banner ok"><i data-lucide="trash-2"></i><div class="b-body"><b><span data-bytes="3200000000">3.2 GB</span> <span data-t="trash.in">is now in your Trash</span></b><span data-t="trash.sub">Space is freed once you empty it.</span></div></div>
+                  <div class="card">
+                    <div style="padding: 12px 14px 4px; display:flex; justify-content:space-between"><b data-t="nav.history">History</b><a href="#screens" style="font-size:12.5px" data-t="ov.all">See all</a></div>
+                    <div class="history-item"><div class="h-dot" style="--c: var(--comb)"><i data-lucide="trash-2"></i></div><div><b style="font-size:13px" data-t="h.1">Moved 142 files to Trash</b><div class="t-small">14:02</div></div><button class="btn btn-sm btn-icon" aria-label="Undo"><i data-lucide="undo-2"></i></button></div>
+                    <div class="history-item"><div class="h-dot" style="--c: var(--sky)"><i data-lucide="pencil-line"></i></div><div><b style="font-size:13px" data-t="h.2">Renamed 48 photos</b><div class="t-small">Yesterday</div></div><button class="btn btn-sm btn-icon" aria-label="Undo"><i data-lucide="undo-2"></i></button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CLEANUP -->
+            <div class="content" data-screen-panel="cleanup" hidden>
+              <div class="cl-grid">
+                <div class="det-list">
+                  <div class="det-item"><span class="file-ico" style="--c: var(--cat-doc)"><i data-lucide="copy"></i></span><div><div class="di-name" data-t="det.dup">Duplicates</div><div class="di-sub">212</div></div><span class="mono" data-bytes="1800000000">1.8 GB</span></div>
+                  <div class="det-item active"><span class="file-ico cat-installer"><i data-lucide="package"></i></span><div><div class="di-name" data-t="det.inst">Old installers</div><div class="di-sub">14</div></div><span class="mono" data-bytes="1100000000">1.1 GB</span></div>
+                  <div class="det-item"><span class="file-ico" style="--c: var(--amber)"><i data-lucide="hard-drive"></i></span><div><div class="di-name" data-t="det.large">Large &amp; old files</div><div class="di-sub">9</div></div><span class="mono" data-bytes="900000000">0.9 GB</span></div>
+                  <div class="det-item"><span class="file-ico cat-shot"><i data-lucide="monitor"></i></span><div><div class="di-name" data-t="det.shots">Old screenshots</div><div class="di-sub">318</div></div><span class="mono" data-bytes="400000000">0.4 GB</span></div>
+                  <div class="det-item"><span class="file-ico" style="--c: var(--sky)"><i data-lucide="download"></i></span><div><div class="di-name" data-t="det.partial">Unfinished downloads</div><div class="di-sub">6</div></div><span class="mono" data-bytes="52000000">52 MB</span></div>
+                  <div class="det-item"><span class="file-ico cat-archive"><i data-lucide="archive"></i></span><div><div class="di-name" data-t="det.extracted">Already extracted</div><div class="di-sub">4</div></div><span class="mono" data-bytes="38000000">38 MB</span></div>
+                  <div class="det-item"><span class="file-ico" style="--c: var(--text-muted)"><i data-lucide="folder-x"></i></span><div><div class="di-name" data-t="det.empty">Empty files &amp; folders</div><div class="di-sub">721</div></div><span class="mono">0 B</span></div>
+                </div>
+
+                <div class="cl-list">
+                  <div class="cl-head">
+                    <label class="check"><input type="checkbox" class="indet" aria-label="Select all"></label>
+                    <h3 class="page-title" style="font-size:22px" data-t="det.inst">Old installers</h3>
+                    <span class="badge" style="--c: var(--text-muted)">14</span>
+                    <div style="margin-left:auto" class="row"><button class="btn btn-sm btn-ghost"><i data-lucide="filter"></i><span data-t="btn.filter">Filter</span></button><button class="btn btn-sm btn-ghost"><i data-lucide="arrow-down-wide-narrow"></i><span data-t="btn.size">Size</span></button></div>
+                  </div>
+                  <div class="list">
+                    <div class="list-row selected"><label class="check"><input type="checkbox" checked aria-label="Select"></label><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div style="min-width:0"><div class="f-name">Zoom_6.2.1.dmg</div><div class="f-sub" data-t="r.zoom">Installer, 214 days old · Zoom appears installed</div></div><div class="f-right"><span class="conf" data-level="3"><span></span><span></span><span></span></span><span class="f-size" data-bytes="128400000">128.4 MB</span></div></div>
+                    <div class="list-row"><label class="check"><input type="checkbox" checked aria-label="Select"></label><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div style="min-width:0"><div class="f-name">GoogleChrome.dmg</div><div class="f-sub" data-t="r.chrome">Installer, 401 days old · Chrome appears installed</div></div><div class="f-right"><span class="conf" data-level="3"><span></span><span></span><span></span></span><span class="f-size" data-bytes="232100000">232.1 MB</span></div></div>
+                    <div class="list-row"><label class="check"><input type="checkbox" checked aria-label="Select"></label><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div style="min-width:0"><div class="f-name">node-v22.11.0.pkg</div><div class="f-sub" data-t="r.node">Installer, 340 days old · newer Node installed</div></div><div class="f-right"><span class="conf" data-level="3"><span></span><span></span><span></span></span><span class="f-size" data-bytes="81200000">81.2 MB</span></div></div>
+                    <div class="list-row"><label class="check"><input type="checkbox" aria-label="Select"></label><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div style="min-width:0"><div class="f-name">Figma-125.1.4.dmg</div><div class="f-sub" data-t="r.figma">Installer, 96 days old · couldn't check if installed</div></div><div class="f-right"><span class="conf" data-level="2"><span></span><span></span><span></span></span><span class="f-size" data-bytes="410600000">410.6 MB</span></div></div>
+                    <div class="list-row"><label class="check"><input type="checkbox" aria-label="Select"></label><div class="file-ico cat-installer"><i data-lucide="package"></i></div><div style="min-width:0"><div class="f-name">vlc-3.0.21-win64.exe</div><div class="f-sub" data-t="r.vlc">Windows installer on a Mac · 512 days old</div></div><div class="f-right"><span class="conf" data-level="2"><span></span><span></span><span></span></span><span class="f-size" data-bytes="42000000">42.0 MB</span></div></div>
+                    <div class="list-row disabled"><label class="check"><input type="checkbox" disabled aria-label="Select"></label><div class="file-ico" style="--c: var(--sky)"><i data-lucide="cloud"></i></div><div style="min-width:0"><div class="f-name">Setup_Office.exe</div><div class="f-sub"><span class="badge" style="--c: var(--sky)" data-t="b.online">Online only</span><span data-t="r.office">Not downloaded, so not checked</span></div></div><div class="f-right"><span class="f-size">—</span></div></div>
+                  </div>
+                  <div class="action-bar">
+                    <div class="ab-info"><b><span data-num="3">3</span> <span data-t="ab.selected">selected</span></b><span data-bytes="441700000">441.7 MB</span></div>
+                    <div class="ab-right"><button class="btn btn-sm btn-ghost"><i data-lucide="pin"></i><span data-t="btn.keep">Keep</span></button><button class="btn btn-sm btn-danger"><i data-lucide="trash-2"></i><span data-t="btn.trash3">Move 3 to Trash</span></button></div>
+                  </div>
+                </div>
+
+                <div class="preview-pane">
+                  <div class="pv-hero"><div class="pkg"><i data-lucide="package"></i></div><span class="ql"><kbd>Space</kbd></span></div>
+                  <div class="card" style="padding: 14px; display:grid; gap:12px; align-content:start">
+                    <div><b style="font-size:15px">Zoom_6.2.1.dmg</b><div class="row" style="margin-top:6px"><span class="badge cat-installer"><i data-lucide="package"></i><span data-t="cat.inst">Installer</span></span><span class="badge st-candidate"><span class="dot"></span><span data-t="b.cand">Cleanup candidate</span></span></div></div>
+                    <div class="reason"><span class="conf" data-level="3"><span></span><span></span><span></span><b data-t="conf.high">High confidence</b></span><span data-t="r.zoom.long">Installer, 214 days old. Zoom appears to be installed in /Applications.</span></div>
+                    <dl class="meta-list">
+                      <div><dt data-t="m.size">Size</dt><dd class="mono" data-bytes="128400000">128.4 MB</dd></div>
+                      <div><dt data-t="m.where">Location</dt><dd class="mono">~/Downloads</dd></div>
+                      <div><dt data-t="m.from">Downloaded from</dt><dd class="mono">zoom.us</dd></div>
+                      <div><dt data-t="m.opened">Last opened</dt><dd data-t="m.opened.v">7 months ago · Spotlight</dd></div>
+                      <div><dt data-t="m.created">Added</dt><dd class="mono">2026-03-19</dd></div>
+                    </dl>
+                    <div class="row"><button class="btn btn-sm btn-keep"><i data-lucide="pin"></i><span data-t="btn.never">Never suggest</span></button><button class="btn btn-sm btn-ghost"><i data-lucide="external-link"></i><span data-t="btn.reveal">Show in Finder</span></button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RENAME -->
+            <div class="content" data-screen-panel="rename" hidden>
+              <div style="display:flex; align-items:center; gap:12px"><h3 class="page-title" data-t="rn.title">Batch rename</h3><span class="badge" style="--c: var(--text-muted)"><span data-num="6">6</span>&nbsp;<span data-t="files">files</span></span><div style="margin-left:auto" class="row"><select class="input" style="width:220px; height:30px"><option data-t="rn.preset">Preset: Holiday photos</option></select></div></div>
+              <div class="rn-grid">
+                <div class="steps">
+                  <div class="step"><i data-lucide="grip-vertical" class="grip"></i><span class="s-num">1</span><div class="s-body"><b data-t="st.date">Name from date taken</b><input class="input mono" value="{exif.date:yyyy-MM-dd}"></div><button class="btn btn-sm btn-icon btn-ghost" aria-label="Remove"><i data-lucide="x"></i></button></div>
+                  <div class="step"><i data-lucide="grip-vertical" class="grip"></i><span class="s-num">2</span><div class="s-body"><b data-t="st.suffix">Add text</b><input class="input mono" value="_Toscane"></div><button class="btn btn-sm btn-icon btn-ghost" aria-label="Remove"><i data-lucide="x"></i></button></div>
+                  <div class="step"><i data-lucide="grip-vertical" class="grip"></i><span class="s-num">3</span><div class="s-body"><b data-t="st.seq">Number in sequence</b><input class="input mono" value="_{n:000} · start 1"></div><button class="btn btn-sm btn-icon btn-ghost" aria-label="Remove"><i data-lucide="x"></i></button></div>
+                  <div class="step"><i data-lucide="grip-vertical" class="grip"></i><span class="s-num">4</span><div class="s-body"><b data-t="st.case">Extension to lowercase</b></div><button class="btn btn-sm btn-icon btn-ghost" aria-label="Remove"><i data-lucide="x"></i></button></div>
+                  <div class="add-step"><i data-lucide="plus"></i><span data-t="st.add">Add step</span></div>
+                </div>
+                <div style="display:grid; grid-template-rows: 1fr auto; min-height:0">
+                  <div class="card" style="overflow:hidden; align-self:start">
+                    <table class="rn-table">
+                      <thead><tr><th data-t="rn.before">Before</th><th></th><th data-t="rn.after">After</th></tr></thead>
+                      <tbody>
+                        <tr><td class="mono">IMG_4821.JPG</td><td class="arrow">→</td><td class="mono new"><mark>2026-07-14_Toscane_001</mark>.jpg</td></tr>
+                        <tr><td class="mono">IMG_4822.JPG</td><td class="arrow">→</td><td class="mono new"><mark>2026-07-14_Toscane_002</mark>.jpg</td></tr>
+                        <tr><td class="mono">IMG_4823 (3).JPG</td><td class="arrow">→</td><td class="mono new"><mark>2026-07-15_Toscane_003</mark>.jpg</td></tr>
+                        <tr><td class="mono">IMG_4830.HEIC</td><td class="arrow">→</td><td class="mono new"><mark>2026-07-15_Toscane_004</mark>.heic</td></tr>
+                        <tr class="conflict"><td class="mono">DSC00012.JPG</td><td class="arrow">→</td><td><span class="mono new">2026-07-16_Toscane_005.jpg</span> <span class="badge" style="--c: var(--comb); margin-left:6px"><i data-lucide="files"></i><span data-t="rn.exists">already exists</span></span></td></tr>
+                        <tr><td class="mono">PXL_20260716_1422.jpg</td><td class="arrow">→</td><td class="mono new"><mark>2026-07-16_Toscane_006</mark>.jpg</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="action-bar">
+                    <div class="ab-info"><b><span data-num="6">6</span> <span data-t="files">files</span></b><span data-t="rn.conflicts">1 conflict</span></div>
+                    <div class="ab-right"><button class="btn btn-sm btn-ghost"><span data-t="rn.resolve">Resolve conflict</span></button><button class="btn btn-sm btn-primary"><i data-lucide="pencil-line"></i><span data-t="rn.apply">Rename 5, skip 1</span></button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-h">Light &amp; dark side by side</div>
+    <div class="compare" id="compare">
+      <div class="frame theme-light"><div class="frame-label"><i data-lucide="sun"></i>Eggshell</div><div class="scale-box"></div></div>
+      <div class="frame theme-dark"><div class="frame-label"><i data-lucide="moon"></i>Night coop</div><div class="scale-box"></div></div>
+    </div>
+  </section>
+
+  <footer class="doc-foot">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#hen-body"/><circle cx="41.5" cy="26" r="2.4" fill="var(--hen-line)"/></svg>
+    <span>Kipple design system v0.1 · GPL-3.0-or-later · Spec: <span class="mono">docs/DESIGN.md</span></span>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var params = new URLSearchParams(location.search);   /* ?theme=light|dark|system&lang=en|nl&screen=overview|cleanup|rename */
+
+  /* ---------- storage (best effort) ---------- */
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  /* ---------- theme ---------- */
+  function setTheme(mode) {
+    if (mode === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", mode);
+    document.querySelectorAll("#themeSwitch button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.themeSet === mode)); });
+    save("kipple-theme", mode);
+  }
+  document.querySelectorAll("#themeSwitch button").forEach(function (b) { b.addEventListener("click", function () { setTheme(b.dataset.themeSet); }); });
+  setTheme(params.get("theme") || load("kipple-theme") || "system");
+
+  /* ---------- i18n (EN default read from DOM, NL dictionary) ---------- */
+  var NL = {
+    "nav.foundations": "Basis", "nav.components": "Componenten", "nav.patterns": "Patronen", "nav.screens": "Schermen",
+    "hero.title1": "Weg met de", "hero.title2": "kipple.",
+    "hero.lead": "Warm, rustig en een tikje brutaal. Dit is de visuele taal van Kipple, de open-source bestandsorganizer voor Linux, macOS en Windows. Eierschaal en dooier overdag, een nachtelijk kippenhok 's avonds.",
+    "hero.speech": "4,3 GB kipple gevonden! 🥚",
+    "pr.calm": "Rustig als het ertoe doet", "pr.cheeky": "Speels als het kan", "pr.mono": "Data spreekt mono", "pr.undo": "Alles ongedaan te maken",
+    "f.title": "Basis", "f.lead": "Kleur, typografie, vorm en de kip. Alle kleuren zijn semantische tokens met een lichte en een donkere waarde. Componenten gebruiken nooit losse hexwaarden.",
+    "c.title": "Componenten", "c.lead": "De bouwstenen, in de app gebouwd met Radix-primitives en Tailwind-tokens. Elk interactief element heeft een hover-, actief-, focus- en uitgeschakelde staat.",
+    "p.title": "Patronen", "p.lead": "Samengestelde onderdelen die op meerdere schermen terugkomen: bestandsrijen, opruimkandidaten, de duplicatenkiezer, geschiedenis, regelkaarten en lege staten.",
+    "s.title": "Schermen", "s.lead": "De belangrijkste MVP-schermen op desktopformaat (1180 × 740). Wissel bovenaan tussen EN/NL om te controleren dat de lay-out langere Nederlandse labels en decimale komma's aankan.",
+    "btn.review": "Opruiming bekijken", "btn.scan": "Nu scannen", "btn.cancel": "Annuleren", "btn.keep": "Bewaren", "btn.trash": "Naar prullenmand",
+    "btn.trashN": "142 bestanden naar prullenmand", "btn.start": "Eerste scan starten", "btn.triage": "Snel sorteren", "btn.filter": "Filteren", "btn.size": "Grootte",
+    "btn.trash3": "3 naar prullenmand", "btn.never": "Nooit meer voorstellen", "btn.reveal": "Toon in Finder",
+    "search.ph": "Bestanden zoeken…",
+    "empty.title": "Geen spatje kipple.", "empty.body": "Je map Downloads is brandschoon. Kipple laat het weten zodra er nieuwe rommel opstapelt.",
+    "nav.overview": "Overzicht", "nav.browse": "Bladeren", "nav.cleanup": "Opruimen", "nav.rename": "Hernoemen", "nav.tidy": "Ordenen",
+    "nav.history": "Geschiedenis", "nav.locations": "Locaties", "nav.settings": "Instellingen", "side.scanned": "2 min geleden gescand",
+    "ov.title": "Goedemiddag. Dit is je kipple.", "ov.ofTotal": "van 18 GB gescand", "ov.found1": "kipple gevonden in", "ov.found2": "bestanden",
+    "ov.found.p": "Vooral duplicaten en oude installatiebestanden in Downloads. Alles gaat naar de prullenmand, dus je kunt het ongedaan maken.",
+    "ov.saved": "Ruimte vrijgemaakt sinds maart", "ov.tidied": "bestanden opgeruimd", "ov.all": "Alles bekijken",
+    "trash.in": "staat nu in je prullenmand", "trash.sub": "De ruimte komt vrij zodra je de prullenmand leegmaakt.",
+    "h.1": "142 bestanden naar prullenmand verplaatst", "h.2": "48 foto's hernoemd",
+    "det.dup": "Duplicaten", "det.inst": "Oude installatiebestanden", "det.large": "Grote, oude bestanden", "det.shots": "Oude schermafbeeldingen",
+    "det.partial": "Onvoltooide downloads", "det.extracted": "Al uitgepakt", "det.empty": "Lege bestanden en mappen", "files": "bestanden",
+    "r.zoom": "Installatiebestand, 214 dagen oud · Zoom lijkt geïnstalleerd", "r.chrome": "Installatiebestand, 401 dagen oud · Chrome lijkt geïnstalleerd",
+    "r.node": "Installatiebestand, 340 dagen oud · nieuwere Node geïnstalleerd", "r.figma": "Installatiebestand, 96 dagen oud · kon niet nagaan of het geïnstalleerd is",
+    "r.vlc": "Windows-installatiebestand op een Mac · 512 dagen oud", "r.office": "Niet gedownload, dus niet gecontroleerd", "b.online": "Alleen online",
+    "ab.selected": "geselecteerd", "cat.inst": "Installatiebestand", "b.cand": "Opruimkandidaat", "conf.high": "Grote zekerheid",
+    "r.zoom.long": "Installatiebestand, 214 dagen oud. Zoom lijkt geïnstalleerd in /Applications.",
+    "m.size": "Grootte", "m.where": "Locatie", "m.from": "Gedownload van", "m.opened": "Laatst geopend", "m.opened.v": "7 maanden geleden · Spotlight", "m.created": "Toegevoegd",
+    "rn.title": "Meerdere bestanden hernoemen", "rn.preset": "Voorinstelling: Vakantiefoto's", "st.date": "Naam uit opnamedatum", "st.suffix": "Tekst toevoegen", "st.seq": "Volgnummer",
+    "st.case": "Extensie in kleine letters", "st.add": "Stap toevoegen", "rn.before": "Voor", "rn.after": "Na", "rn.exists": "bestaat al",
+    "rn.conflicts": "1 conflict", "rn.resolve": "Conflict oplossen", "rn.apply": "5 hernoemen, 1 overslaan"
+  };
+  var EN = {};
+  document.querySelectorAll("[data-t]").forEach(function (el) { if (!(el.dataset.t in EN)) EN[el.dataset.t] = el.textContent; });
+  document.querySelectorAll("[data-tp]").forEach(function (el) { EN[el.dataset.tp] = el.getAttribute("placeholder"); });
+
+  function fmtBytes(n, lang, unitless) {
+    var units = ["B", "KB", "MB", "GB", "TB"], i = 0;
+    while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
+    var frac = i >= 2 && Math.round(n * 10) % 10 !== 0 ? 1 : 0;
+    var s = new Intl.NumberFormat(lang === "nl" ? "nl-BE" : "en-GB", { minimumFractionDigits: frac, maximumFractionDigits: frac }).format(n);
+    return unitless ? s : s + " " + units[i];
+  }
+  function setLang(lang) {
+    var dict = lang === "nl" ? NL : EN;
+    document.querySelectorAll("[data-t]").forEach(function (el) { var v = dict[el.dataset.t] || EN[el.dataset.t]; if (v != null) el.textContent = v; });
+    document.querySelectorAll("[data-tp]").forEach(function (el) { el.setAttribute("placeholder", dict[el.dataset.tp] || EN[el.dataset.tp]); });
+    document.querySelectorAll("[data-bytes]").forEach(function (el) { el.textContent = fmtBytes(Number(el.dataset.bytes), lang, el.hasAttribute("data-unitless")); });
+    document.querySelectorAll("[data-num]").forEach(function (el) { el.textContent = new Intl.NumberFormat(lang === "nl" ? "nl-BE" : "en-GB").format(Number(el.dataset.num)); });
+    document.querySelectorAll("#langSwitch button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === lang)); });
+    root.setAttribute("lang", lang);
+    save("kipple-lang", lang);
+    refreshCompare();
+  }
+
+  /* ---------- screens ---------- */
+  function showScreen(name) {
+    document.querySelectorAll("#appWindow [data-screen-panel]").forEach(function (p) { p.hidden = p.dataset.screenPanel !== name; });
+    document.querySelectorAll("#screenTabs button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.screen === name)); });
+    document.querySelectorAll("#appWindow .nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.nav === name); });
+  }
+  document.querySelectorAll("#screenTabs button").forEach(function (b) { b.addEventListener("click", function () { showScreen(b.dataset.screen); }); });
+  document.querySelectorAll("#appWindow .nav-item[data-nav]").forEach(function (n) { n.addEventListener("click", function () { showScreen(n.dataset.nav); }); });
+
+  /* ---------- swatches (values read live from each themed panel) ---------- */
+  var SW = [
+    ["Yolk", "--yolk", "--on-yolk"], ["Yolk ink", "--yolk-ink", "--surface"], ["Yolk soft", "--yolk-soft"],
+    ["Comb", "--comb", "--on-comb"], ["Comb soft", "--comb-soft"], ["Sage", "--sage", "--surface"],
+    ["Amber", "--amber", "--surface"], ["Sky / focus", "--sky", "--surface"],
+    ["Background", "--bg"], ["Surface", "--surface"], ["Surface 2", "--surface-2"], ["Border", "--border"],
+    ["Text", "--text", "--bg"], ["Text muted", "--text-muted", "--bg"]
+  ];
+  document.querySelectorAll("[data-swatches]").forEach(function (box) {
+    var cs = getComputedStyle(box);
+    box.innerHTML = SW.map(function (s) {
+      var val = cs.getPropertyValue(s[1]).trim().toUpperCase();
+      var on = s[2] ? "var(" + s[2] + ")" : "var(--text)";
+      return '<div class="swatch"><div class="chip" style="--c: var(' + s[1] + '); --on: ' + on + '"><span>Aa</span></div><div class="meta"><b>' + s[0] + '</b><code>' + s[1] + '</code><code>' + val + '</code></div></div>';
+    }).join("");
+  });
+
+  /* ---------- indeterminate checkboxes ---------- */
+  document.querySelectorAll("input.indet").forEach(function (i) { i.indeterminate = true; });
+
+  /* ---------- range fill ---------- */
+  document.querySelectorAll("input.slider").forEach(function (r) {
+    function upd() { r.style.setProperty("--v", ((r.value - r.min) / (r.max - r.min) * 100) + "%"); }
+    r.addEventListener("input", upd); upd();
+  });
+
+  /* ---------- icons ---------- */
+  if (window.lucide) { try { window.lucide.createIcons(); } catch (e) {} }
+
+  /* ---------- compare: clone overview into light and dark frames ---------- */
+  function refreshCompare() {
+    var src = document.getElementById("appWindow");
+    document.querySelectorAll("#compare .scale-box").forEach(function (box) {
+      var clone = src.cloneNode(true);
+      clone.removeAttribute("id");
+      clone.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
+      clone.querySelectorAll("[data-screen-panel]").forEach(function (p) { p.hidden = p.dataset.screenPanel !== "overview"; });
+      clone.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.nav === "overview"); });
+      clone.setAttribute("aria-hidden", "true");
+      clone.setAttribute("inert", "");
+      box.innerHTML = "";
+      box.appendChild(clone);
+    });
+    sizeCompare();
+  }
+  function sizeCompare() {
+    document.querySelectorAll("#compare .scale-box").forEach(function (box) {
+      var w = box.clientWidth, win = box.firstElementChild; if (!win) return;
+      var s = w / 1180; win.style.transform = "scale(" + s + ")"; box.style.height = (740 * s) + "px";
+    });
+  }
+  window.addEventListener("resize", sizeCompare);
+
+  document.querySelectorAll("#langSwitch button").forEach(function (b) { b.addEventListener("click", function () { setLang(b.dataset.lang); }); });
+  setLang(params.get("lang") || load("kipple-lang") || "en");
+  showScreen(params.get("screen") || "overview");
+  /* ?only=foundations|components|patterns|screens renders a single section (handy for review screenshots) */
+  if (params.get("only")) { document.querySelectorAll("main > section").forEach(function (s) { s.hidden = s.id !== params.get("only"); }); refreshCompare(); }
+})();
+</script>
+</body>
+</html>
