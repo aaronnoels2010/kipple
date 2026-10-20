@@ -1,0 +1,76 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Security issue or possible data loss caused by an attacker?** Please use [private vulnerability reporting](https://github.com/aaronnoels2010/kipple/security/advisories/new) instead.
+        Please don't paste private file names or paths unless you're comfortable sharing them.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add ~/Downloads as a location
+        2. Open Cleanup → Old installers
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: files-affected
+    attributes:
+      label: Were files moved, renamed or deleted unexpectedly?
+      options:
+        - "No"
+        - "Yes, and Undo / History restored them"
+        - "Yes, and I could NOT restore them"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kipple version
+      placeholder: "0.1.0 (Settings → About)"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version and install type
+      placeholder: "e.g. macOS 27.0 (.dmg), Windows 11 24H2 (NSIS / portable), Ubuntu 26.04 (AppImage)"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Settings → Privacy & diagnostics → Export diagnostics. File paths are redacted by default. Drag the .zip here.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true

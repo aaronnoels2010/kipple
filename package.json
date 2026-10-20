@@ -1,0 +1,18 @@
+{
+  "name": "kipple",
+  "private": true,
+  "description": "Kipple: a free, open-source file organiser for Linux, macOS and Windows",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aaronnoels2010/kipple.git"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "check:spdx": "bash scripts/check-spdx.sh",
+    "test:scripts": "bash scripts/tests/check-spdx.test.sh"
+  }
+}

@@ -1,0 +1,33 @@
+name: Feature idea
+description: Suggest something Kipple could do
+labels: ["idea", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [functional plan](https://github.com/aaronnoels2010/kipple/blob/main/docs/FUNCTIONAL_PLAN.md) first. Your idea may already be planned for v1 or later.
+        Kipple is **not a system cleaner** (no registry or cache cleaning, no "speed up your PC"); see the non-goals.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation, e.g. "My Downloads fills up with ... and I have to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Kipple to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This isn't already in the functional plan, and it isn't one of the non-goals.
+          required: true

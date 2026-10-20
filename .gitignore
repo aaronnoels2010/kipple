@@ -1,0 +1,35 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node / frontend
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Tauri
+app/src-tauri/target/
+
+# Spikes: throwaway prototypes, keep only code and write-ups
+spikes/**/out/
+spikes/**/target/
+spikes/**/node_modules/
+
+# Benchmarks & generated test trees
+bench-out/
+.kipple-testtree/
+
+# Logs & OS / editor clutter (yes, Kipple ignores its own kipple)
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+
+# Local tool state
+.omc/
+.env
+.env.*

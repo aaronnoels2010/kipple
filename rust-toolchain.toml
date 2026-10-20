@@ -1,0 +1,6 @@
+# Pinned Rust toolchain. rustup reads this automatically inside the repo.
+# Bump deliberately (one PR, CI green on all three OSes).
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

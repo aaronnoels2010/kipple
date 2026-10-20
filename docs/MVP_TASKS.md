@@ -68,7 +68,10 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - `.gitignore` covers `target/`, `node_modules/`, `.omc/` and `spikes/**/out`.
     - There are issue and PR templates.
     - A script checks the SPDX headers.
-- [ ] **K-0.2 Toolchain pinning** · S
+  - **Still open:**
+    - [ ] Code of Conduct contact (`[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md`)
+    - [ ] Enable *Private vulnerability reporting* in the GitHub repo settings (linked from `SECURITY.md`)
+- [x] **K-0.2 Toolchain pinning** · S
   - **Done when:**
     - `rust-toolchain.toml`, `.nvmrc`, pnpm and `.editorconfig` are in place.
     - `docs/DEVELOPING.md` lists the prerequisites per OS (Rust, Node, Tauri system dependencies, WebView2 and WebKitGTK notes).
