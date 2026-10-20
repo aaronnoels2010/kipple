@@ -333,7 +333,13 @@ sequenceDiagram
   - If the content changed since (the user edited the file after a move), undo still restores the location and shows a warning. If the identity doesn't match, the entry is skipped and reported.
 - **Trash with undo:** a Trash entry is only marked done **after** its trash location is recorded in `undo_json`.
   - **Windows** and **Linux**: restore via the `trash` crate.
-  - **macOS**: `NSFileManager trashItemAtURL:resultingItemURL:`. Kipple doesn't scan `~/.Trash`, which is protected by TCC (S1).
+  - **macOS**: `NSFileManager trashItemAtURL:resultingItemURL:`. The resulting location can't be guessed: clashing names get a timestamp appended, e.g. `report.txt 16-17-29-376.txt`. Restore works **without Full Disk Access**. Kipple never scans `~/.Trash` (TCC-protected); a crash between the trash call and the journal commit is reported as `unknown`, with a pointer to Finder's *Put Back*. ✅ Verified in spike S1 ([report](../spikes/s1-macos-trash/README.md)).
+- **No-overwrite primitives only.** Every Move, Rename and Restore uses an atomic "fail if the target exists" call, never `std::fs::rename`, which silently overwrites:
+  - **macOS:** `renamex_np(RENAME_EXCL)`, falling back to `NSFileManager moveItemAtURL:toURL:` on `ENOTSUP` (ExFAT).
+  - **Linux:** `renameat2(RENAME_NOREPLACE)`, with a fallback for file systems that don't support it (designed in K-4.5).
+  - **Windows:** `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING`.
+
+  An `EEXIST` becomes a `Conflict` and is never resolved silently.
 - **Error codes:** `locked_by_process {app}`, `permission_denied`, `controlled_folder_access`, `not_found`, `disk_full`, `name_invalid`, `no_trash_on_volume`, `cross_device_not_supported`, `identity_mismatch`. These codes drive the "12 files skipped" report, and **Retry** creates a `retry` plan from the skipped entries.
 
 **Apply policy:** `{ max_ops, max_bytes, on_exceed: ask | abort, allow_permanent_delete: false }`.
@@ -529,7 +535,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
 
 | # | Risk | Spike | Fallback |
 |---|---|---|---|
-| S1 | **macOS Trash undo** needs `resultingItemURL`, and `~/.Trash` is TCC-protected | Prototype via `objc2`; test restore without Full Disk Access | Undo unavailable for that entry, with a clear message; never scan `~/.Trash` |
+| S1 | ✅ **Done.** **macOS Trash undo** needs `resultingItemURL`, and `~/.Trash` is TCC-protected | Result: trash + restore work without Full Disk Access on internal disks, APFS, Mac OS Extended, ExFAT and FAT32 ([report](../spikes/s1-macos-trash/README.md)). Home "Trash size" needs Full Disk Access | Undo unavailable for that entry, with a clear message; never scan `~/.Trash` |
 | S2 | **Unsigned macOS UX + TCC persistence** across updates | Clean Mac: download → first launch → grant folders → auto-update → check whether grants survive (ad-hoc vs self-signed certificate) | Install guide; re-grant prompt after updates |
 | S3 | **Last-used signals** are slow (Spotlight) or incomplete (Windows Recent) | Benchmark batched Spotlight lookups on 100k files | Optional enrichment; max(mtime, atime, Kipple opens) |
 | S4 | **Scan performance** at 1M files, especially metadata/file IDs on Windows | `kipple-cli bench` + synthetic tree generator early | Windows directory-level enumeration APIs; tune batch sizes; defer enrichment |

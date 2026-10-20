@@ -18,6 +18,7 @@ Kipple's promise is "safe by default": dry-run summaries, undo for every action,
 6. **Cross-volume moves** are refused in MVP. In v1 they use copy-to-temp → fsync → verify hash → rename → trash the source. Recovery only removes temp files, and only while the source still exists.
 7. **Undo** is an inverse Plan through the same Validator and Executor. It checks identity per entry, warns if the content changed, and skips entries whose identity doesn't match.
 8. An **Apply policy** (max operations and bytes, ask or abort, `allow_permanent_delete=false` for rules) lets automatic rules pause on large runs.
+9. *(Added after spike S1.)* The Executor only uses **no-overwrite primitives** for Move, Rename and Restore (`renamex_np(RENAME_EXCL)` with an NSFileManager fallback, `renameat2(RENAME_NOREPLACE)`, `MoveFileExW` without replace). `std::fs::rename` is disallowed, because it silently overwrites an existing file.
 
 ## Consequences
 - The safety features are implemented once and tested with fault injection: a "crash" at operation N or sub-step N, and simulated power loss.

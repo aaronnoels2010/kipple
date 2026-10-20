@@ -1,0 +1,14 @@
+[package]
+name = "kipple-spike-trash"
+version = "0.0.1"
+description = "Spike S1 (K-0.4): macOS Trash with resultingItemURL + restore without Full Disk Access. Throwaway."
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+# Standalone: never part of the main Cargo workspace.
+[workspace]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.5"
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSFileManager", "NSURL", "NSError", "NSString"] }

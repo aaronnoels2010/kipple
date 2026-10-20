@@ -79,7 +79,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
   - **Goal:** find out whether an app signed without notarisation keeps its macOS folder permissions (TCC grants) across updates.
   - **Done when:** on a clean Mac, the flow download → first launch → grant folder access → update to a newer build has been tested with **an ad-hoc signature vs a self-signed certificate**. The result is recorded in **ADR-0008**, and the first-launch steps for the install guide are written up.
   - **Depends on:** a minimal Tauri hello-world.
-- [ ] **K-0.4 Spike S1: undo after moving to the macOS Trash** · S
+- [x] **K-0.4 Spike S1: undo after moving to the macOS Trash** · S ([result](../spikes/s1-macos-trash/README.md))
   - **Done when:**
     - A prototype using `objc2` calls `trashItemAtURL:resultingItemURL:` and records the resulting URL.
     - Restoring the file works **without Full Disk Access**.
@@ -198,6 +198,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - It respects exclusions, protected paths and opaque bundles/VCS dirs.
     - It diffs on `(size, mtime, ctime, file_id)` and clears hashes when an item changes.
     - Placeholders are only `stat`-ed.
+    - `._*` AppleDouble companion files (created by macOS on FAT/ExFAT, spike S1) are marked as OS metadata: hidden from counts, and a folder holding only `._*` files counts as empty.
     - Commands: `scan.start | pause | resume | cancel | status`.
     - Tests use temp trees, and the K-0.5 targets are met.
 - [ ] **K-2.7 Enrichers** · M
@@ -290,6 +291,7 @@ The safety foundation. **This slice gets the most thorough tests.**
   - **Done when:**
     - `supports(volume)` works on all three OSes (using the K-0.6 matrix).
     - Trash and restore work on Windows and Linux via the `trash` crate, and on macOS via NSFileManager (from the K-0.4 spike).
+    - Restores use the no-overwrite primitives from ADR-0002 §9, including the ExFAT fallback, and are tested on APFS, Mac OS Extended, ExFAT and FAT32 images in CI.
     - An entry is marked done only after its trash location has been recorded.
     - `TrashUsage` works.
 - [ ] **K-4.7 Recovery** · L
