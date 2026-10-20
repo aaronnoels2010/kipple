@@ -1,0 +1,44 @@
+# Spike S9 (K-0.6): which volumes have a Trash, and does Kipple predict it correctly?
+# Manual only: Actions → "Spike S9 · trash support" → Run workflow.
+name: Spike S9 · trash support
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            run: bash spikes/s9-trash-support/run-linux.sh
+            shell: bash
+          - os: windows-latest
+            run: pwsh -File spikes/s9-trash-support/run-windows.ps1
+            shell: pwsh
+          - os: macos-latest
+            run: bash spikes/s9-trash-support/run-macos.sh
+            shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: Probe volumes
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.run }}
+      - name: Job summary
+        if: always()
+        shell: bash
+        run: cat spikes/s9-trash-support/out/results-*.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trash-support-${{ matrix.os }}
+          path: spikes/s9-trash-support/out/results-*.md
