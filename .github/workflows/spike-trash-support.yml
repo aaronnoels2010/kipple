@@ -18,24 +18,22 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            run: bash spikes/s9-trash-support/run-linux.sh
-            shell: bash
+            script: bash spikes/s9-trash-support/run-linux.sh
           - os: windows-latest
-            run: pwsh -File spikes/s9-trash-support/run-windows.ps1
-            shell: pwsh
+            script: pwsh -File spikes/s9-trash-support/run-windows.ps1
           - os: macos-latest
-            run: bash spikes/s9-trash-support/run-macos.sh
-            shell: bash
+            script: bash spikes/s9-trash-support/run-macos.sh
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned Rust toolchain (rust-toolchain.toml)
         run: rustup toolchain install
       - name: Probe volumes
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.run }}
+        run: ${{ matrix.script }}
       - name: Job summary
         if: always()
-        shell: bash
         run: cat spikes/s9-trash-support/out/results-*.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
