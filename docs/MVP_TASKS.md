@@ -139,7 +139,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - The empty states use the hen.
     - EN and NL both render without clipped text.
   - **Refs:** DESIGN.md §7, §10, §11.
-- [ ] **K-1.7 Logging & redaction** · S
+- [x] **K-1.7 Logging & redaction** · S
   - **Done when:**
     - `tracing` writes rolling log files to the app log dir.
     - A redaction layer replaces paths with an **HMAC-SHA256 hash using a per-install salt**.

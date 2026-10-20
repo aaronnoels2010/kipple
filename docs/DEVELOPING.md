@@ -121,6 +121,8 @@ The shell's security settings (CSP, only explicitly listed `allow-<command>` cap
 
 ⚠️ **`tauri dev` doesn't enforce the CSP on desktop** (it loads the Vite server directly). Before relying on a new asset type, font or style technique, check it in a release-mode build: `pnpm -C app tauri build --debug`. Runtime CSS-in-JS libraries that inject `<style>` tags won't work under `style-src 'self'`.
 
+**Logging:** use `tracing`, and put paths in a field named `path`, `file`, `dir` or `*_path`/`*_file`/`*_dir`, never in the message text: `tracing::info!(path = %path.display(), "scanned")`. Those fields are hashed whole; every line is also scrubbed for anything else that looks like a path (third-party errors, panics, `log` crate messages), but the scrubber can't tell where an unquoted path with spaces ends. A path shows up as `<path#1a2b3c4d5e6f>`, an HMAC with a per-install key (`redaction.key` in the app data dir, never exported), so the same file always gets the same tag. Log files roll daily in the app log dir (`~/Library/Logs/app.kipple.desktop` on macOS, `%LOCALAPPDATA%\app.kipple.desktop\logs` on Windows, `~/.local/share/app.kipple.desktop/logs` on Linux) and a week is kept. Set the level with `KIPPLE_LOG=debug`, or per target: `KIPPLE_LOG=kipple_app=trace` (everything else stays at `info`).
+
 **Need an exception to the forbidden APIs?** Only the Executor and the platform adapters it calls may change files. Put `#[allow(clippy::disallowed_methods)]` on that specific module with a comment saying why; reviewers check every one.
 
 ## Repository layout (planned)

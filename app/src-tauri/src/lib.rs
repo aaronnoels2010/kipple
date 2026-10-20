@@ -4,7 +4,9 @@
 
 mod appearance;
 mod ipc;
+mod logging;
 mod navigation;
+mod redact;
 mod settings;
 
 use appearance::AppearanceState;
@@ -35,6 +37,16 @@ pub fn run() {
                 .build(),
         )
         .setup(move |app| {
+            // First, so everything after it is logged. Without these folders, run unlogged.
+            let paths = app.path();
+            if let (Ok(logs), Ok(data)) = (paths.app_log_dir(), paths.app_data_dir()) {
+                logging::init(&logs, &data.join("redaction.key"));
+            }
+            tracing::info!(
+                version = %app.package_info().version,
+                os = std::env::consts::OS,
+                "Kipple started"
+            );
             ipc.mount_events(app);
             let settings_path = app
                 .path()

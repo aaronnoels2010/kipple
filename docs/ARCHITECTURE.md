@@ -180,7 +180,8 @@ Storage is split by how precious the data is ([ADR-0003](adr/0003-storage-split.
 | `state.db` | Plans (short-lived), journal, marks, **tags**, stats, location size history, rule run history | **Precious.** WAL with **`synchronous=FULL`** (so the write-ahead commit survives power loss), forward-only migrations, backup before each migration | app data dir |
 | `config/*.json` | Settings, rules, rename and tidy presets | **Portable.** Versioned schema, export/import, may live in a user-synced folder | app config dir |
 | Thumbnail cache | Generated thumbnails | Disposable; LRU with a size cap | app cache dir |
-| Logs | Rolling log files | Disposable, redacted | app log dir |
+| Logs | Rolling log files (daily, 7 kept) | Disposable, redacted | app log dir |
+| `redaction.key` | Per-install salt for path hashes in logs | Never exported; a new one only changes future tags | app data dir |
 
 **Settings → Remove all Kipple data** (MVP) deletes all of the above. This is needed because the `.dmg`, AppImage and portable `.exe` have no uninstaller.
 
@@ -499,7 +500,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
   - Navigation is guarded.
 - **Network:** the only outbound call is the updater fetching GitHub `latest.json` plus the bundle. It can be disabled, and there's no telemetry.
 - **Redaction:**
-  - Paths and file names in logs are replaced by **HMAC-SHA256 with a per-install salt** that is never exported (`<path#a1b2c3>`).
+  - Paths and file names in logs are replaced by **HMAC-SHA256 with a per-install salt** that is never exported (`<path#1a2b3c4d5e6f>`). Path fields are hashed whole; the rest of each line is scrubbed for path-like text.
   - A **panic hook** and an error-string scrubber catch paths coming from third-party crates.
   - The settings and config included in a diagnostics zip are redacted as well, unless the user opts in.
 - **Update key:** a Tauri updater (minisign) key, kept as a CI secret with an offline backup.

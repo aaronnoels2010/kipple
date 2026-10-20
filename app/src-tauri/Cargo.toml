@@ -17,10 +17,10 @@ name = "kipple"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build = "=2.7.1"
+tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
-tauri = "=2.12.1"
+tauri = { version = "=2.12.1", features = [] }
 tauri-plugin-opener = "=2.7.0"
 tauri-plugin-single-instance = "=2.5.2"
 serde = { version = "1", features = ["derive"] }
@@ -28,8 +28,17 @@ serde_json = "=1.0.154"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 sys-locale = "=0.3.2"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+# Logging with redacted paths (logging.rs, redact.rs)
+getrandom = "=0.4.3"
+hmac = "=0.13.0"
+sha2 = "=0.11.0"
+tracing = "=0.1.44"
+tracing-appender = "=0.2.5"
+tracing-log = "=0.2.0"
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "registry", "std"] }
 
 [dev-dependencies]
+log = "=0.4.34"
 tempfile = "=3.27.0"
 # The TypeScript export only runs in the bindings test, never in the app.
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
