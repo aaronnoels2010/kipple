@@ -23,9 +23,15 @@ tauri-build = "=2.7.1"
 tauri = "=2.12.1"
 tauri-plugin-opener = "=2.7.0"
 tauri-plugin-single-instance = "=2.5.2"
+serde = { version = "1", features = ["derive"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 
 [dev-dependencies]
 serde_json = "=1.0.154"
+# The TypeScript export only runs in the bindings test, never in the app.
+tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
+specta-typescript = "=0.0.12"
 
 [lints]
 workspace = true

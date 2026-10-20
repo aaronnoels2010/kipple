@@ -2,6 +2,7 @@
 //! Kipple's Tauri shell: windows, plugins and wiring. Holds no business logic (ARCHITECTURE §2).
 #![forbid(unsafe_code)]
 
+mod ipc;
 mod navigation;
 
 use navigation::{Decision, Platform};
@@ -12,7 +13,9 @@ use tauri_plugin_opener::OpenerExt;
 const MAIN_WINDOW: &str = "main";
 
 pub fn run() {
+    let commands = ipc::specta_builder();
     tauri::Builder::default()
+        .invoke_handler(commands.invoke_handler())
         // Must be registered first: a second launch focuses the running instance instead.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             focus_main_window(app)

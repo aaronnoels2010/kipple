@@ -109,8 +109,11 @@ These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before 
 | `pnpm -C app test` | Frontend tests (Vitest + Testing Library) |
 | `pnpm -C app typecheck` | TypeScript check |
 | `pnpm -C app tauri build` | Release build and installers for the current OS |
+| `KIPPLE_UPDATE_BINDINGS=1 cargo test -p kipple-app bindings` | Regenerates the typed IPC bindings `app/src/bindings/index.ts` after changing a command or IPC type in `app/src-tauri/src/ipc.rs`. CI fails if they're stale |
 
-The shell's security settings (CSP, empty capabilities, no file-system plugin, navigation guard) are pinned by tests in `app/src-tauri/tests/security_config.rs` and `src/navigation.rs`. Changing them needs an ADR change first ([ADR-0007](adr/0007-backend-trust-boundary.md)).
+**Adding an IPC command:** write it in `ipc.rs` with `#[tauri::command] #[specta::specta]`, add it to `collect_commands!` and to `src/command_names.rs`, grant `allow-<command-name>` in `capabilities/default.json`, then regenerate the bindings. Tests fail if any of these disagree. Commands return data or `Coded { code, params }`, never display text (ADR-0004).
+
+The shell's security settings (CSP, only explicitly listed `allow-<command>` capabilities, no file-system plugin, navigation guard) are pinned by tests in `app/src-tauri/tests/security_config.rs` and `src/navigation.rs`. Changing them needs an ADR change first ([ADR-0007](adr/0007-backend-trust-boundary.md)).
 
 ⚠️ **`tauri dev` doesn't enforce the CSP on desktop** (it loads the Vite server directly). Before relying on a new asset type, font or style technique, check it in a release-mode build: `pnpm -C app tauri build --debug`. Runtime CSS-in-JS libraries that inject `<style>` tags won't work under `style-src 'self'`.
 

@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
+include!("../src/command_names.rs");
+
 fn conf() -> Value {
     serde_json::from_str(include_str!("../tauri.conf.json")).unwrap()
 }
@@ -92,7 +94,7 @@ fn no_windows_declared_in_config() {
 }
 
 #[test]
-fn exactly_one_capability_and_it_grants_nothing() {
+fn exactly_one_capability_with_exactly_the_reviewed_permissions() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities");
     let files: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
@@ -107,9 +109,13 @@ fn exactly_one_capability_and_it_grants_nothing() {
     let cap: Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
     assert_eq!(cap["windows"], json!(["main"]));
     assert!(cap.get("remote").is_none(), "no IPC for remote origins");
-    // The UI uses no IPC yet. Add specific `core:*:allow-*` permissions only when needed, never
-    // `core:default` (it exposes home/app-data paths, menus and image loading).
-    assert_eq!(cap["permissions"], json!([]));
+    // Exactly Kipple's own commands, one by one. Never `core:default` (it exposes home/app-data
+    // paths, menus and image loading) and never plugin permissions for fs/shell/opener/dialog.
+    let expected: Vec<String> = COMMAND_NAMES
+        .iter()
+        .map(|c| format!("allow-{}", c.replace('_', "-")))
+        .collect();
+    assert_eq!(cap["permissions"], json!(expected));
 }
 
 #[test]

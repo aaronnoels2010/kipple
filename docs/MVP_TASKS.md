@@ -109,7 +109,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - **Capabilities are locked down:** no `plugin-fs`, no asset-protocol scope.
     - A strict CSP and a navigation guard are in place (only the app's own origin; external links open in the browser).
   - **Refs:** ADR-0001, ADR-0007.
-- [ ] **K-1.3 Typed IPC** · S
+- [x] **K-1.3 Typed IPC** · S
   - **Done when:**
     - tauri-specta generates `app/src/bindings`.
     - One command, `app.info`, works end-to-end.
