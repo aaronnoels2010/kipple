@@ -64,8 +64,10 @@ pub fn predict(dir: &Path) -> Prediction {
     if m.ro {
         return Prediction { has_trash: false, why: "read-only mount".into() };
     }
+    // The home Trash may not exist yet on a fresh account (the spec allows creating it):
+    // use the device of its nearest existing ancestor.
     let home = home_trash();
-    let home_dev = fs::metadata(home.parent().unwrap_or(&home)).map(|x| x.dev()).ok();
+    let home_dev = home.ancestors().find_map(|a| fs::metadata(a).ok()).map(|x| x.dev());
     let dir_dev = fs::metadata(dir).map(|x| x.dev()).ok();
     if home_dev.is_some() && home_dev == dir_dev {
         return Prediction { has_trash: true, why: "same device as home Trash".into() };
