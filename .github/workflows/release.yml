@@ -114,17 +114,36 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Tauri's own APPLE_CERTIFICATE import only recognises Apple-issued certificates
+      # ("Developer ID Application: …"), so the self-signed one is put in a keychain here and
+      # Tauri just signs with the identity by name.
+      - name: Signing keychain with "Kipple Release Signing" (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/kipple-signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          # Add it to the search list, so `codesign --sign "Kipple Release Signing"` finds it.
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -p codesigning "$keychain"
       - name: Build and upload the installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS: the self-signed "Kipple Release Signing" certificate (ADR-0008). No Apple ID,
-          # so nothing is notarised.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # macOS: sign with the self-signed certificate from the keychain step (ADR-0008). No
+          # Apple ID, so nothing is notarised.
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
         with:
           projectPath: app
           releaseId: ${{ needs.draft.outputs.release-id }}
@@ -136,6 +155,9 @@ jobs:
           app=$(find target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
           codesign --verify --strict --verbose=2 "$app"
           codesign -dvv "$app" 2>&1 | grep -q '^Authority=Kipple Release Signing$'
+      - name: Remove the signing keychain
+        if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/kipple-signing.keychain-db" || true
       - name: Portable Windows build (exe + "portable" marker)
         if: runner.os == 'Windows'
         env:
