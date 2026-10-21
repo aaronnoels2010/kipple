@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use kipple_core::location::{Location, LocationId, LocationKind, UserFolder};
 use kipple_core::paths::is_within;
@@ -121,11 +121,8 @@ pub struct LocationsState {
     dialog_open: AtomicBool,
 }
 
-fn now() -> Timestamp {
-    let since = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    Timestamp(i64::try_from(since.as_nanos()).unwrap_or(i64::MAX))
+pub(crate) fn now() -> Timestamp {
+    Timestamp::from_system_time(SystemTime::now())
 }
 
 fn storage_failed(error: impl std::fmt::Display) -> Coded {
@@ -225,6 +222,20 @@ impl LocationsState {
             }),
             dialog_open: AtomicBool::new(false),
         }
+    }
+
+    /// Where index.db is (scans open their own connection to it).
+    pub fn index_path(&self) -> PathBuf {
+        self.file.with_file_name("index.db")
+    }
+
+    pub fn protected(&self) -> &ProtectedPaths {
+        &self.protected
+    }
+
+    /// Every Location, as last checked.
+    pub fn locations(&self) -> Vec<Location> {
+        self.lock().stored.locations.clone()
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -365,7 +376,9 @@ pub async fn locations_add_default(
     folder: DefaultFolder,
 ) -> Result<LocationView, Coded> {
     let path = folder.path(&app);
-    off_main_thread(app, move |state| state.add_default(folder, path)).await
+    let added = off_main_thread(app.clone(), move |state| state.add_default(folder, path)).await?;
+    crate::scans::start(&app, Some(LocationId(i64::from(added.id))));
+    Ok(added)
 }
 
 /// Lets the user pick a folder in the OS's own dialog and adds it. `None` if they cancelled (or
@@ -395,17 +408,22 @@ pub async fn locations_add_via_dialog(app: AppHandle) -> Result<Option<LocationV
     let path = folder
         .into_path()
         .map_err(|_| Coded::new("location_not_a_folder"))?;
-    off_main_thread(app, move |state| {
-        state.add(&path, LocationKind::Custom).map(Some)
+    let added = off_main_thread(app.clone(), move |state| {
+        state.add(&path, LocationKind::Custom)
     })
-    .await
+    .await?;
+    crate::scans::start(&app, Some(LocationId(i64::from(added.id))));
+    Ok(Some(added))
 }
 
 /// Stops managing a Location and forgets its Items (the files themselves are untouched).
 #[tauri::command]
 #[specta::specta]
 pub async fn locations_remove(app: AppHandle, id: u32) -> Result<(), Coded> {
-    off_main_thread(app, move |state| state.remove(LocationId(i64::from(id)))).await
+    let id = LocationId(i64::from(id));
+    // Its Items are about to go: a scan still writing them would only fail.
+    app.state::<crate::scans::Scans>().forget(id);
+    off_main_thread(app, move |state| state.remove(id)).await
 }
 
 /// Pauses or resumes a Location: a disabled one isn't scanned or cleaned, its Items stay.
@@ -416,10 +434,14 @@ pub async fn locations_set_enabled(
     id: u32,
     enabled: bool,
 ) -> Result<LocationView, Coded> {
-    off_main_thread(app, move |state| {
-        state.set_enabled(LocationId(i64::from(id)), enabled)
-    })
-    .await
+    let id = LocationId(i64::from(id));
+    let changed = off_main_thread(app.clone(), move |state| state.set_enabled(id, enabled)).await?;
+    if enabled {
+        crate::scans::start(&app, Some(id));
+    } else {
+        app.state::<crate::scans::Scans>().cancel(Some(id));
+    }
+    Ok(changed)
 }
 
 #[cfg(test)]

@@ -9,12 +9,17 @@ pub mod fake;
 mod os;
 mod protected;
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use kipple_core::identity::VolumeId;
+use kipple_core::identity::{FileId, VolumeId};
 use kipple_core::location::VolumeCaps;
+use kipple_core::time::Timestamp;
 
-pub use os::{NativePlaceholders, NativeSyncRoots, NativeVolumes, canonical};
+pub use os::{
+    NativeDirectories, NativePlaceholders, NativeSyncRoots, NativeVolumes, canonical,
+    never_download_placeholders, peak_memory,
+};
 pub use protected::ProtectedPaths;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,6 +69,45 @@ pub struct VolumeInfo {
 pub trait Volumes: Send + Sync {
     /// The volume holding `path` (which must exist).
     fn volume_of(&self, path: &Path) -> PortResult<VolumeInfo>;
+}
+
+/// What a directory entry is. Links (symlinks, junctions) are reported, never followed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EntryKind {
+    File,
+    Dir,
+    Symlink,
+    /// Sockets, pipes, devices: never Items.
+    Other,
+}
+
+/// One entry of a directory listing, with the metadata the listing (or an `lstat`) gives: no
+/// file is opened, so a placeholder is never downloaded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirEntry {
+    pub name: OsString,
+    pub kind: EntryKind,
+    /// Zero for folders.
+    pub size: u64,
+    pub modified: Timestamp,
+    /// ctime on macOS and Linux, ChangeTime on Windows.
+    pub changed: Option<Timestamp>,
+    pub created: Option<Timestamp>,
+    /// Whether it survives renames depends on the volume (`VolumeCaps::stable_file_ids`).
+    pub file_id: Option<FileId>,
+    /// Hidden by the OS (`UF_HIDDEN`, `FILE_ATTRIBUTE_HIDDEN`). Dotfiles are the caller's call.
+    pub hidden: bool,
+    /// Online-only cloud file: its contents must never be read.
+    pub placeholder: bool,
+    /// A folder another volume is mounted on (Unix: another `st_dev`, which also covers btrfs
+    /// subvolumes and ZFS datasets). Windows reports mounted folders as links.
+    pub mount_point: bool,
+}
+
+pub trait Directories: Send + Sync {
+    /// The entries of `dir`, without `.` and `..`. Fails as a whole rather than return a
+    /// partial listing: a missing entry would look deleted.
+    fn list(&self, dir: &Path) -> PortResult<Vec<DirEntry>>;
 }
 
 pub trait Placeholders: Send + Sync {

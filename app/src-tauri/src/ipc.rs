@@ -81,9 +81,15 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             crate::locations::locations_add_via_dialog,
             crate::locations::locations_remove,
             crate::locations::locations_set_enabled,
+            crate::scans::scan_start,
+            crate::scans::scan_pause,
+            crate::scans::scan_resume,
+            crate::scans::scan_cancel,
+            crate::scans::scan_status,
         ])
         .events(tauri_specta::collect_events![
-            crate::appearance::AppearanceChanged
+            crate::appearance::AppearanceChanged,
+            crate::scans::ScanProgress
         ])
         .typ::<Coded>()
 }

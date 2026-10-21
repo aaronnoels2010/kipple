@@ -12,4 +12,9 @@ const COMMAND_NAMES: &[&str] = &[
     "locations_add_via_dialog",
     "locations_remove",
     "locations_set_enabled",
+    "scan_start",
+    "scan_pause",
+    "scan_resume",
+    "scan_cancel",
+    "scan_status",
 ];

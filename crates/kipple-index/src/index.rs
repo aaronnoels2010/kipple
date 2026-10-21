@@ -2,7 +2,8 @@
 //! `index.db`: the rebuildable cache of Locations and Items (ADR-0003). WAL with
 //! `synchronous=NORMAL`: losing the last moments of a scan only means rescanning.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use kipple_core::category::{TypeCategory, extension_of};
 use kipple_core::identity::{ContentHash, ContentStamp, FileId, Identity, VolumeId};
@@ -38,12 +39,14 @@ pub struct IndexDb {
 /// The columns `read_item` expects, in order (the name last, for the cursor).
 const ITEM_COLUMNS: &str = "id, location_id, path, kind, size, created_at, modified_at, changed_at, \
      file_id, volume_id, type_category, is_hidden, is_placeholder, is_screenshot, quick_hash, \
-     full_hash, name";
+     full_hash, is_os_metadata, name";
+/// The position of `name` in [`ITEM_COLUMNS`].
+const NAME_COLUMN: usize = 17;
 
 /// The columns written by a scan, in the order of the staging table and the upsert.
 const SCAN_COLUMNS: &str = "location_id, path, parent_path, name, ext, kind, size, created_at, \
      modified_at, changed_at, file_id, volume_id, type_category, is_hidden, is_placeholder, \
-     is_screenshot, quick_hash, full_hash, scanned_at";
+     is_screenshot, quick_hash, full_hash, is_os_metadata, scanned_at";
 
 /// One page of Items matching `filter` (parameters `?1`…`?n`), in name order, after the cursor
 /// `(?n+1, ?n+2)` if `keyset`, then the row limit as the last parameter.
@@ -66,12 +69,25 @@ impl IndexDb {
     /// Opens (or creates) the index at `path`. A different schema version means the index is
     /// dropped and recreated empty; the next scan fills it again.
     pub fn open(path: &Path) -> Result<Self> {
+        // 64 MiB page cache: the item indexes and the trigram index outgrow the 2 MiB default
+        // quickly, and every cache miss is a disk read when browsing and searching.
+        Self::open_with_cache(path, 64)
+    }
+
+    /// A connection for one scan: scans run side by side with the app's own connection, so
+    /// each gets a smaller page cache (a scan touches one folder's rows at a time).
+    pub fn open_for_scan(path: &Path) -> Result<Self> {
+        Self::open_with_cache(path, 16)
+    }
+
+    fn open_with_cache(path: &Path, cache_mib: i64) -> Result<Self> {
         let conn = Connection::open(path)?;
+        // Scans write through their own connections while the app reads and writes locations:
+        // wait for the others' transactions (first, so even the pragmas below wait).
+        conn.busy_timeout(Duration::from_secs(30))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
-        // 64 MiB page cache: the item indexes and the trigram index outgrow the 2 MiB default
-        // quickly, and every cache miss is a disk read during a scan.
-        conn.pragma_update(None, "cache_size", -65_536)?;
+        conn.pragma_update(None, "cache_size", -cache_mib * 1024)?;
         conn.pragma_update(None, "temp_store", "MEMORY")?;
         Self::init(conn)
     }
@@ -198,19 +214,30 @@ impl IndexDb {
     }
 
     /// Inserts or updates Items by (location, path) in one transaction, returning their IDs in
-    /// order. An update keeps the row ID and everything enrichers added (mime, last used,
-    /// origin). Stored hashes are kept only while the file ID, size, mtime and ctime are unchanged.
+    /// order. An update keeps the row ID, the last-used signal and the download origin. What
+    /// was read from the content (hashes, mime, EXIF, `enriched_at`) is kept only while the file
+    /// ID, size, mtime and ctime are unchanged: otherwise it's cleared, which tells the
+    /// enrichers to look again.
     pub fn upsert_items(&mut self, items: &[Item], scanned_at: Timestamp) -> Result<Vec<ItemId>> {
+        self.upsert(items, scanned_at, true)
+    }
+
+    /// [`IndexDb::upsert_items`] without returning the IDs: what a scan writes.
+    pub fn upsert_scanned(&mut self, items: &[Item], scanned_at: Timestamp) -> Result<()> {
+        self.upsert(items, scanned_at, false).map(drop)
+    }
+
+    fn upsert(&mut self, items: &[Item], scanned_at: Timestamp, ids: bool) -> Result<Vec<ItemId>> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM item_stage", [])?;
         {
             let mut stage = tx.prepare_cached(&format!(
                 "INSERT INTO item_stage ({SCAN_COLUMNS}) \
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, \
-                   ?18, ?19)"
+                   ?18, ?19, ?20)"
             ))?;
             for item in items {
-                let path = &item.identity.path;
+                let path = &normal(&item.identity.path);
                 let name = path
                     .file_name()
                     .unwrap_or(path.as_os_str())
@@ -240,6 +267,7 @@ impl IndexDb {
                     item.is_screenshot,
                     quick,
                     full,
+                    item.is_os_metadata,
                     scanned_at.0,
                 ])?;
             }
@@ -247,6 +275,11 @@ impl IndexDb {
         // `WHERE true` keeps SQLite from reading `ON CONFLICT` as part of the SELECT.
         let unchanged = "item.file_id IS excluded.file_id AND item.size = excluded.size \
             AND item.modified_at = excluded.modified_at AND item.changed_at IS excluded.changed_at";
+        let returning = if ids {
+            "RETURNING location_id, path, id"
+        } else {
+            ""
+        };
         let mut ids_by_key = std::collections::HashMap::with_capacity(items.len());
         {
             let mut upsert = tx.prepare_cached(&format!(
@@ -258,10 +291,15 @@ impl IndexDb {
                    file_id = excluded.file_id, volume_id = excluded.volume_id, \
                    type_category = excluded.type_category, is_hidden = excluded.is_hidden, \
                    is_placeholder = excluded.is_placeholder, is_screenshot = excluded.is_screenshot, \
+                   is_os_metadata = excluded.is_os_metadata, \
                    quick_hash = coalesce(excluded.quick_hash, iif({unchanged}, item.quick_hash, NULL)), \
                    full_hash = coalesce(excluded.full_hash, iif({unchanged}, item.full_hash, NULL)), \
-                   scanned_at = excluded.scanned_at \
-                 RETURNING location_id, path, id"
+                   hashed_at = iif({unchanged}, item.hashed_at, NULL), \
+                   phash = iif({unchanged}, item.phash, NULL), \
+                   mime = iif({unchanged}, item.mime, NULL), \
+                   meta_json = iif({unchanged}, item.meta_json, NULL), \
+                   enriched_at = iif({unchanged}, item.enriched_at, NULL), \
+                   scanned_at = excluded.scanned_at {returning}"
             ))?;
             // RETURNING has no guaranteed order: map the IDs back by (location, path).
             let mut rows = upsert.query([])?;
@@ -273,9 +311,17 @@ impl IndexDb {
             }
         }
         tx.commit()?;
+        if !ids {
+            return Ok(Vec::new());
+        }
         Ok(items
             .iter()
-            .map(|item| ids_by_key[&(item.location.0, path_bytes::encode(&item.identity.path))])
+            .map(|item| {
+                ids_by_key[&(
+                    item.location.0,
+                    path_bytes::encode(&normal(&item.identity.path)),
+                )]
+            })
             .collect())
     }
 
@@ -297,13 +343,64 @@ impl IndexDb {
         after: Option<&Cursor>,
         limit: usize,
     ) -> Result<Page> {
-        let parent = path_bytes::encode(parent);
+        let parent = path_bytes::encode(&normal(parent));
         self.page(
             &children_sql(after.is_some()),
             &[&location.0, &parent],
             after,
             limit,
         )
+    }
+
+    /// Every Item directly inside `parent`, in no particular order: what a rescan compares a
+    /// folder's listing with.
+    pub fn items_in(&self, location: LocationId, parent: &Path) -> Result<Vec<Item>> {
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT {ITEM_COLUMNS} FROM item WHERE location_id = ?1 AND parent_path = ?2"
+        ))?;
+        stmt.query_map(
+            params![location.0, path_bytes::encode(&normal(parent))],
+            read_item,
+        )?
+        .collect()
+    }
+
+    /// Deletes these Items (not what's inside them: see [`IndexDb::delete_under`]).
+    /// Returns how many there were.
+    pub fn delete_items(&mut self, ids: &[ItemId]) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut deleted = 0;
+        {
+            let mut delete = tx.prepare_cached("DELETE FROM item WHERE id = ?1")?;
+            for id in ids {
+                deleted += delete.execute([id.0])?;
+            }
+        }
+        tx.commit()?;
+        Ok(deleted)
+    }
+
+    /// Deletes every Item inside the folder `dir` of `location`, at any depth (not `dir`'s own
+    /// row). Returns how many there were.
+    pub fn delete_under(&mut self, location: LocationId, dir: &Path) -> Result<usize> {
+        // Everything inside starts with `dir` + separator: one range of the (location, path)
+        // index, from that prefix up to the prefix with its last byte raised by one.
+        let mut prefix = path_bytes::encode(&normal(dir).join("x"));
+        prefix.truncate(prefix.len() - path_bytes::encode(Path::new("x")).len());
+        let mut end = prefix.clone();
+        *end.last_mut().expect("a separator") += 1;
+        // In chunks: one huge delete would keep other writers (other scans) waiting.
+        let mut delete = self.conn.prepare_cached(
+            "DELETE FROM item WHERE id IN (SELECT id FROM item \
+               WHERE location_id = ?1 AND path >= ?2 AND path < ?3 LIMIT 10000)",
+        )?;
+        let mut deleted = 0;
+        loop {
+            match delete.execute(params![location.0, prefix, end])? {
+                0 => return Ok(deleted),
+                n => deleted += n,
+            }
+        }
     }
 
     /// Items whose name contains `query` (case- and accent-insensitive), sorted by name.
@@ -355,7 +452,7 @@ impl IndexDb {
         let mut stmt = self.conn.prepare_cached(sql)?;
         let mut rows = stmt
             .query_map(params.as_slice(), |r| {
-                Ok((read_item(r)?, r.get::<_, String>(16)?))
+                Ok((read_item(r)?, r.get::<_, String>(NAME_COLUMN)?))
             })?
             .collect::<Result<Vec<_>>>()?;
         let next = if rows.len() > limit {
@@ -410,6 +507,11 @@ fn code<T>(r: &Row, idx: usize, from_code: fn(&str) -> Option<T>) -> Result<T> {
     })
 }
 
+/// `path` without `.` components and trailing separators: `/r/`, `/r/.` and `/r` are one row.
+fn normal(path: &Path) -> PathBuf {
+    path.components().collect()
+}
+
 /// An Item from a row of [`ITEM_COLUMNS`]. An unknown kind or category code is an error: only
 /// this code writes them, so it means a bug or a damaged index (rescanning rebuilds it).
 fn read_item(r: &Row) -> Result<Item> {
@@ -438,6 +540,7 @@ fn read_item(r: &Row) -> Result<Item> {
         is_hidden: r.get(11)?,
         is_placeholder: r.get(12)?,
         is_screenshot: r.get(13)?,
+        is_os_metadata: r.get(16)?,
     })
 }
 
@@ -496,6 +599,7 @@ mod tests {
             is_hidden: false,
             is_placeholder: false,
             is_screenshot: false,
+            is_os_metadata: false,
         }
     }
 
@@ -552,6 +656,7 @@ mod tests {
         original.is_hidden = true;
         original.is_placeholder = true;
         original.is_screenshot = true;
+        original.is_os_metadata = true;
         let db = db_with(&[]);
         let mut db = db;
         let ids = db
@@ -599,7 +704,7 @@ mod tests {
         let again = db.upsert_items(&[item("a.pdf", 99)], Timestamp(3)).unwrap()[0];
         assert_eq!(again, id);
         assert_eq!(db.item(id).unwrap().unwrap().content.size, 99);
-        let (mime, last_used): (String, i64) = db
+        let (mime, last_used): (Option<String>, i64) = db
             .conn
             .query_row(
                 "SELECT mime, last_used_at FROM item WHERE id = ?1",
@@ -607,7 +712,8 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
-        assert_eq!((mime.as_str(), last_used), ("application/pdf", 42));
+        // The content changed: its type is sniffed again; when it was last used isn't content.
+        assert_eq!((mime, last_used), (None, 42));
     }
 
     #[test]
@@ -709,9 +815,39 @@ mod tests {
             db.item(id).unwrap().unwrap().content.hash,
             hashed.content.hash
         );
+        // What enrichers added, by hand.
+        let enrich = |db: &IndexDb| {
+            db.conn
+                .execute(
+                    "UPDATE item SET hashed_at = 1, phash = x'01', mime = 'x/y', meta_json = '{}', \
+                       enriched_at = 1, last_used_at = 5, origin_url = 'https://example.org'",
+                    [],
+                )
+                .unwrap();
+        };
+        // (how many content-derived columns are set, last used, origin)
+        let derived = |db: &IndexDb| -> (i64, Option<i64>, Option<String>) {
+            db.conn
+                .query_row(
+                    "SELECT (hashed_at IS NOT NULL) + (phash IS NOT NULL) + (mime IS NOT NULL) \
+                       + (meta_json IS NOT NULL) + (enriched_at IS NOT NULL), last_used_at, \
+                       origin_url FROM item",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .unwrap()
+        };
+        enrich(&db);
+        db.upsert_items(&[item("a.iso", 10)], Timestamp(3)).unwrap();
+        assert_eq!(derived(&db).0, 5, "unchanged: the enrichment stays");
         // Rescanned with a new size: the old hash no longer describes the file.
         db.upsert_items(&[item("a.iso", 11)], Timestamp(3)).unwrap();
         assert_eq!(db.item(id).unwrap().unwrap().content.hash, None);
+        assert_eq!(
+            derived(&db),
+            (0, Some(5), Some("https://example.org".into())),
+            "what came from the content is cleared (enrich again); last used and origin stay"
+        );
     }
 
     #[test]
@@ -826,6 +962,91 @@ mod tests {
         drop(db);
         // Reopening the current version keeps the data.
         let db = IndexDb::open(&path).unwrap();
+        assert_eq!(names(&db.search("a.pdf", None, 10).unwrap()), ["a.pdf"]);
+    }
+
+    fn paths(items: &[Item]) -> Vec<String> {
+        let mut paths: Vec<_> = items
+            .iter()
+            .map(|i| i.identity.path.to_string_lossy().into_owned())
+            .collect();
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    fn a_folders_items_are_read_in_one_go() {
+        let db = db_with(&[
+            item("a.pdf", 1),
+            item("Sub", 0),
+            item("Sub/b.pdf", 2),
+            item("Sub/Deeper/c.pdf", 3),
+        ]);
+        let top = db.items_in(LocationId(1), Path::new(ROOT)).unwrap();
+        assert_eq!(
+            paths(&top),
+            [format!("{ROOT}/Sub"), format!("{ROOT}/a.pdf")]
+        );
+        assert!(top.iter().all(|i| i.id.is_some()));
+        let sub = db
+            .items_in(LocationId(1), &Path::new(ROOT).join("Sub"))
+            .unwrap();
+        assert_eq!(paths(&sub), [format!("{ROOT}/Sub/b.pdf")]);
+        assert!(
+            db.items_in(LocationId(2), Path::new(ROOT))
+                .unwrap()
+                .is_empty(),
+            "another Location's folder"
+        );
+    }
+
+    #[test]
+    fn deleting_items_and_everything_under_a_folder() {
+        let mut db = db_with(&[
+            item("a.pdf", 1),
+            item("Sub", 0),
+            item("Sub/b.pdf", 2),
+            item("Sub/Deeper/c.pdf", 3),
+            item("Sub2/d.pdf", 4),
+            item("Sub 3/e.pdf", 5),
+        ]);
+        let a = db.items_in(LocationId(1), Path::new(ROOT)).unwrap();
+        let a = a
+            .iter()
+            .find(|i| i.identity.path.ends_with("a.pdf"))
+            .unwrap();
+        db.delete_items(&[a.id.unwrap()]).unwrap();
+        let sub = Path::new(ROOT).join("Sub");
+        db.delete_under(LocationId(1), &sub).unwrap();
+
+        let left: Vec<_> = ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"]
+            .into_iter()
+            .filter(|name| !db.search(name, None, 10).unwrap().items.is_empty())
+            .collect();
+        assert_eq!(
+            left,
+            ["d.pdf", "e.pdf"],
+            "only what was inside Sub, and a.pdf"
+        );
+        assert_eq!(
+            paths(&db.items_in(LocationId(1), Path::new(ROOT)).unwrap()),
+            [format!("{ROOT}/Sub")],
+            "the folder's own row stays: it's deleted like any item"
+        );
+    }
+
+    #[test]
+    fn paths_are_normalised_before_they_reach_the_index() {
+        let mut slash = item("a.pdf", 1);
+        slash.identity.path = PathBuf::from(format!("{ROOT}/./Sub/a.pdf/"));
+        let mut db = db_with(&[slash]);
+        let plain = item("Sub/a.pdf", 1);
+        db.upsert_items(std::slice::from_ref(&plain), Timestamp(2))
+            .unwrap();
+        let found = db
+            .items_in(LocationId(1), Path::new(&format!("{ROOT}/Sub/")))
+            .unwrap();
+        assert_eq!(paths(&found), [format!("{ROOT}/Sub/a.pdf")], "one row");
         assert_eq!(names(&db.search("a.pdf", None, 10).unwrap()), ["a.pdf"]);
     }
 }

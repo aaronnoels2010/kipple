@@ -5,3 +5,4 @@
 
 pub mod jobs;
 pub mod locations;
+pub mod scan;

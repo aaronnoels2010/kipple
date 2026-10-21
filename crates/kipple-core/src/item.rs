@@ -53,6 +53,9 @@ pub struct Item {
     /// Online-only cloud file: its contents are never read (that would download it).
     pub is_placeholder: bool,
     pub is_screenshot: bool,
+    /// A file the OS keeps for itself (`._*` AppleDouble companions, `.DS_Store`, `Thumbs.db`,
+    /// `desktop.ini`): left out of counts, and a folder holding only these counts as empty.
+    pub is_os_metadata: bool,
 }
 
 #[cfg(test)]

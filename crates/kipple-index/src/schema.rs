@@ -4,7 +4,7 @@
 //! rebuilds it.
 
 /// Bump on any schema change. Stored in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Paths are BLOBs ([`crate::path_bytes`]); times are nanoseconds since the epoch; kinds and
 /// categories are the stable codes from `kipple-core`.
@@ -44,6 +44,7 @@ CREATE TABLE item (
   is_hidden        INTEGER NOT NULL,
   is_placeholder   INTEGER NOT NULL,
   is_screenshot    INTEGER NOT NULL,
+  is_os_metadata   INTEGER NOT NULL,  -- `._*`, `.DS_Store`…: left out of counts
   last_used_at     INTEGER,
   last_used_source TEXT,
   origin_url       TEXT,

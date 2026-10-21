@@ -11,6 +11,7 @@ mod navigation;
 mod own_files;
 mod portable;
 mod redact;
+mod scans;
 mod settings;
 
 use appearance::AppearanceState;
@@ -71,7 +72,14 @@ pub fn run() {
                 .join("config")
                 .join("settings.json");
             app.manage(AppearanceState::load(settings_path));
-            app.manage(locations::LocationsState::from_app(app.handle())?);
+            // macOS: no read anywhere in Kipple can download an online-only file. Windows: cloud
+            // files show up as such (readers check `is_placeholder` before reading).
+            if let Err(e) = kipple_platform::never_download_placeholders() {
+                tracing::warn!(error = %e, "couldn't turn off cloud downloads");
+            }
+            let locations = locations::LocationsState::from_app(app.handle())?;
+            app.manage(scans::Scans::from_app(app.handle(), &locations)?);
+            app.manage(locations);
             let state = app.state::<AppearanceState>();
 
             let window = create_main_window(app.handle(), state.preference())?;
@@ -81,6 +89,9 @@ pub fn run() {
                 locations
                     .state::<locations::LocationsState>()
                     .refresh_online();
+                // Rescans are quick (S4): bring the index up to date with what happened while
+                // Kipple was closed.
+                scans::start(&locations, None);
             });
             appearance::init(&window, &state);
             let (handle, observed) = (app.handle().clone(), window.clone());
@@ -92,8 +103,17 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(context)
-        .expect("Kipple failed to start");
+        .build(context)
+        .expect("Kipple failed to start")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event
+                && let Some(scans) = app.try_state::<scans::Scans>()
+            {
+                // Scans stop at the next folder; give them a moment to commit what they wrote.
+                scans.cancel(None);
+                scans.wait(std::time::Duration::from_secs(2));
+            }
+        });
 }
 
 /// Built in code (not in tauri.conf.json) so the navigation guard is always attached.

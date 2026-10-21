@@ -209,7 +209,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - K-2.6: keep the job ID → Location map behind the same lock the event sink takes (events for a job can arrive before `submit` returns), or add a tag to `JobSpec`. Keep the last scan's counts yourself: a finished job leaves the scheduler. De-duplicate `scan.start` per Location. Size the walker's threads from `volume_limit`. A job that queues follow-up jobs (enrich after scan) holds a `Weak` to the scheduler, never an `Arc`. Report progress per directory, not per file (it takes the scheduler's lock).
     - The app shell picks `max_jobs` and, on quit, cancels and waits (`wait_idle`) so a scan's open batch can commit. Don't forward every state event to the UI one-to-one: a burst of small enrich jobs makes three each.
     - Queued jobs are picked by a linear scan; switch to an ordered set if thousands of jobs get queued.
-- [ ] **K-2.6 Walker & diff** · L
+- [x] **K-2.6 Walker & diff** · L
   - **Done when:**
     - The parallel `ignore` walker runs with `standard_filters(false)`.
     - It respects exclusions, protected paths and opaque bundles/VCS dirs.
@@ -222,6 +222,20 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Tests use temp trees, and the K-0.5 targets are met.
   - **Notes from K-2.2:** normalise paths before they reach the index (`/r/` and `/r` are different rows today; a path without a file name is stored with the whole path as its name).
   - **From the K-2.4 review:** a Location may *contain* protected folders (a whole drive with `$Recycle.Bin`, a portable `KippleData` inside Downloads): the walker must skip every protected path it meets, not only check the Location's root.
+  - **Decision:** not the `ignore` walker but Kipple's own per-folder parallel walker (`kipple-engine::scan`, ARCH §3 and §7.1). The per-folder diff needs whole folder listings, which `ignore` doesn't give, and Windows lists each folder with one `FileIdBothDirectoryInfo` call. It skips nothing for being hidden or gitignored, which was the point of `standard_filters(false)`.
+  - **Result (M-series Mac, release, SSD walker):** 100k files: first scan 2.0 s, rescan 0.17 s. 1M files: first scan 20.5 s, rescan 3.4 s, peak memory 65 MB (scan connections use a 16 MiB SQLite page cache; with 64 MiB it was 124 MB). Run `cargo test -p kipple-engine --release --test scan_benchmark -- --ignored --nocapture --test-threads 1`.
+  - **Left for later tasks:**
+    - Exclusions: the engine takes them; their settings and UI come with Settings (FUNCTIONAL_PLAN §1). Until then the app scans with none. Name patterns match a single name (`node_modules`, `*.tmp`), not paths.
+    - The app scans every enabled, online Location at startup and when one is added or switched on; removing or switching one off cancels its scan. Event: `ScanProgress`. **K-2.9** owns the browse-side events (`index.changed`, `location.online_changed`) and the locale strings for the scan codes (`scan_offline`, `scan_unreadable`, `scan_index_failed`, `scan_not_started`, `job_panicked`, `job_not_started`). Switching a Location off and quickly on again doesn't rescan it while the cancelled scan is still ending; pause/resume/cancel act on all scans at once. Onboarding (which default folders start on) is still open.
+    - **K-2.7 / K-3.1:** on Windows, reading a cloud file downloads it whatever the process mode: check `is_placeholder` first (or open with `FILE_FLAG_OPEN_NO_RECALL`). A changed Item has `enriched_at` cleared: that's the "enrich again" signal. On macOS, xattr and permission changes bump ctime, so they count as changes too.
+    - **K-5.4:** `empty_dir` treats a folder holding only OS metadata as empty.
+    - The walker's thread count (`walker_threads`: SSD 8, unknown / network 4, HDD / removable 2) is separate from the scheduler's per-volume job limit. The benchmark uses the SSD setting; most volumes report "unknown" until SSD/HDD detection exists.
+    - The walker doesn't cross into other volumes mounted inside a Location (Unix `st_dev`; Windows reports mounted folders as links). That also skips nested btrfs subvolumes and ZFS datasets.
+    - Online-only folders aren't listed: files added to one in the cloud only show up once it's downloaded.
+    - Faster when needed (the targets are met with room to spare): `ProtectedPaths::is_protected` costs about 3.7 µs per entry (≈ 3.7 CPU-s at 1M files); deciding the rules once per folder would make it ~0.1 µs. Also: decode index rows without copying, key the per-folder diff by name, and wake fewer walker threads per folder. Measure first whether rescans are bound by the walker or the writer.
+    - Windows: `FileIdBothDirectoryInfo` gives 64-bit file IDs; ReFS uses 128-bit ones (`FileIdExtdDirectoryInfo`). The plain fallback has no file IDs or ChangeTime. Not yet checked: the Google Drive virtual drive (G:), and filtering sync roots by the user's SID.
+    - Linux: cache `/proc/self/mountinfo` per scan; btrfs subvolumes share a UUID but can't rename across each other.
+    - macOS bundles are still recognised by name only (`.key` and `.photoslibrary` have no `Contents/Info.plist` to confirm them by). Bundles are stored with size 0 (their contents aren't walked).
 - [ ] **K-2.7 Enrichers** · M
   - **Done when:**
     - Download origin is read on all three OSes.

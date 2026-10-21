@@ -16,6 +16,7 @@ These terms are used consistently in code, docs, UI copy keys and issues. If a t
 | **Index** | The local cache of Items and their metadata (`index.db`). It can be rebuilt by rescanning. | **Journal**, which can't be rebuilt |
 | **Scan** | Walking Locations and updating the Index. | **Enrich** |
 | **Enrich** | Background step that adds slower metadata: last-used, download origin, EXIF, hashes. | |
+| **OS metadata** | Files the OS keeps for itself next to the user's: `._*` AppleDouble companions, `.DS_Store`, `Thumbs.db`, `desktop.ini`. Indexed, but left out of counts; a folder holding only these counts as empty. | **Hidden** files, which are the user's own |
 | **Job** | One unit of background work (a scan, an enrich batch, hashing, thumbnails) run by the **job scheduler** in priority order. It can be paused, resumed and cancelled, and reports progress. | The **in-app scheduler** of ADR-0006, which starts scans and rules at set times |
 | **Last used** | The best estimate of when the user last opened an Item, combined from several **signals** (Spotlight, Recent Items, `recently-used.xbel`, atime, Kipple's own opens). It always records which signal it came from. | `modified_at` |
 | **Type category** | A type bucket (Images, Screenshots, Installers…). Every Item has exactly one. | **Facet** |

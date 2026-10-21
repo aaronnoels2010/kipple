@@ -15,6 +15,11 @@
     "allow-locations-add-via-dialog",
     "allow-locations-remove",
     "allow-locations-set-enabled",
+    "allow-scan-start",
+    "allow-scan-pause",
+    "allow-scan-resume",
+    "allow-scan-cancel",
+    "allow-scan-status",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

@@ -8,12 +8,52 @@ mod macos;
 #[cfg(windows)]
 mod windows;
 
+#[cfg(unix)]
+mod unix;
+
 #[cfg(target_os = "linux")]
 pub use linux::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
 #[cfg(target_os = "macos")]
 pub use macos::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
+#[cfg(unix)]
+pub use unix::NativeDirectories;
 #[cfg(windows)]
-pub use windows::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
+pub use windows::{NativeDirectories, NativePlaceholders, NativeSyncRoots, NativeVolumes};
+
+/// The most memory this process has had resident at once, in bytes: for benchmarks.
+pub fn peak_memory() -> Option<u64> {
+    #[cfg(unix)]
+    {
+        // SAFETY: getrusage only writes into the zeroed struct it's given.
+        let usage = unsafe {
+            let mut usage: libc::rusage = std::mem::zeroed();
+            (libc::getrusage(libc::RUSAGE_SELF, &mut usage) == 0).then_some(usage)
+        }?;
+        let max = u64::try_from(usage.ru_maxrss).ok()?;
+        // Bytes on macOS, KiB on Linux.
+        Some(if cfg!(target_os = "macos") {
+            max
+        } else {
+            max * 1024
+        })
+    }
+    #[cfg(windows)]
+    {
+        windows::peak_memory()
+    }
+}
+
+/// Sets this process's cloud-file behaviour; call once at startup. macOS: reading a dataless
+/// file fails instead of downloading it. Windows: cloud files are shown as what they are, but
+/// reading one still downloads it, so readers check `is_placeholder` first. Linux has none.
+pub fn never_download_placeholders() -> crate::PortResult<()> {
+    #[cfg(target_os = "macos")]
+    return macos::never_download_placeholders();
+    #[cfg(windows)]
+    return windows::never_download_placeholders();
+    #[cfg(target_os = "linux")]
+    Ok(())
+}
 
 use crate::SyncProvider;
 

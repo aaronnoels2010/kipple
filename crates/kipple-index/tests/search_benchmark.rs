@@ -91,6 +91,7 @@ fn item(n: u64, seed: &mut u64) -> Item {
         is_hidden: false,
         is_placeholder: false,
         is_screenshot: false,
+        is_os_metadata: false,
     }
 }
 

@@ -38,11 +38,18 @@ export const commands = {
 	locationsRemove: (id: number) => typedError<null, Coded>(__TAURI_INVOKE("locations_remove", { id })),
 	/**  Pauses or resumes a Location: a disabled one isn't scanned or cleaned, its Items stay. */
 	locationsSetEnabled: (id: number, enabled: boolean) => typedError<LocationView, Coded>(__TAURI_INVOKE("locations_set_enabled", { id, enabled })),
+	scanStart: (locationId: number | null) => typedError<null, Coded>(__TAURI_INVOKE("scan_start", { locationId })),
+	scanPause: () => __TAURI_INVOKE<void>("scan_pause"),
+	scanResume: () => __TAURI_INVOKE<void>("scan_resume"),
+	scanCancel: () => __TAURI_INVOKE<void>("scan_cancel"),
+	/**  Every Location's current or last scan. */
+	scanStatus: () => __TAURI_INVOKE<ScanView[]>("scan_status"),
 };
 
 /** Events */
 export const events = {
 	appearanceChanged: makeEvent<AppearanceChanged>("appearance-changed"),
+	scanProgress: makeEvent<ScanProgress>("scan-progress"),
 };
 
 /* Types */
@@ -93,6 +100,28 @@ export type LocationView = {
  *  TypeScript type includes `null`. Only pass finite numbers.
  */
 export type Param = string | number | null | boolean;
+
+export type ScanPhase = "queued" | "running" | "paused" | "done" | "cancelled" | "failed";
+
+/**  Sent whenever scans change state, and with progress at most 10 times a second. */
+export type ScanProgress = {
+	scans: ScanView[],
+};
+
+/**  A Location's current scan, or its last one. Counts are `f64`: specta has no 64-bit integers. */
+export type ScanView = {
+	location_id: number,
+	phase: ScanPhase,
+	/**  Items seen so far. */
+	items: number | null,
+	added: number | null,
+	updated: number | null,
+	removed: number | null,
+	/**  Folders that couldn't be read (their Items are kept). */
+	unreadable: number | null,
+	/**  Why it failed, as a code (`scan_offline`, `scan_index_failed`…). */
+	failure: string | null,
+};
 
 export type Theme = "light" | "dark";
 

@@ -12,6 +12,21 @@ pub struct FakeVolumes {
     pub volumes: Vec<VolumeInfo>,
 }
 
+impl FakeVolumes {
+    /// One local, writable volume `id` mounted at `mount_point`.
+    pub fn single(id: &str, mount_point: PathBuf, caps: kipple_core::location::VolumeCaps) -> Self {
+        Self {
+            volumes: vec![VolumeInfo {
+                id: kipple_core::identity::VolumeId(id.into()),
+                mount_point,
+                fs_type: "fakefs".into(),
+                read_only: false,
+                caps,
+            }],
+        }
+    }
+}
+
 impl Volumes for FakeVolumes {
     fn volume_of(&self, path: &Path) -> PortResult<VolumeInfo> {
         self.volumes

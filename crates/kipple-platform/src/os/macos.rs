@@ -146,13 +146,45 @@ pub struct NativePlaceholders;
 impl Placeholders for NativePlaceholders {
     fn is_placeholder(&self, path: &Path) -> PortResult<bool> {
         use std::os::macos::fs::MetadataExt;
-        // Older iCloud versions left `.Name.ext.icloud` stub files instead of dataless ones.
-        let stub = path
-            .file_name()
-            .and_then(OsStr::to_str)
-            .is_some_and(|n| n.starts_with('.') && n.ends_with(".icloud"));
         // Metadata only: reading the flags never downloads anything.
-        Ok(stub || std::fs::symlink_metadata(path)?.st_flags() & SF_DATALESS != 0)
+        let flags = std::fs::symlink_metadata(path)?.st_flags();
+        Ok(is_placeholder(path.file_name().unwrap_or_default(), flags))
+    }
+}
+
+/// From a file's name and `st_flags`.
+pub(crate) fn is_placeholder(name: &OsStr, flags: u32) -> bool {
+    // Older iCloud versions left `.Name.ext.icloud` stub files instead of dataless ones.
+    let stub = name
+        .to_str()
+        .is_some_and(|n| n.starts_with('.') && n.ends_with(".icloud"));
+    stub || flags & SF_DATALESS != 0
+}
+
+pub(crate) fn never_download_placeholders() -> PortResult<()> {
+    // <sys/resource.h>; libc doesn't bind them.
+    const IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES: libc::c_int = 3;
+    const IOPOL_SCOPE_PROCESS: libc::c_int = 0;
+    const IOPOL_MATERIALIZE_DATALESS_FILES_OFF: libc::c_int = 1;
+    unsafe extern "C" {
+        fn setiopolicy_np(
+            iotype: libc::c_int,
+            scope: libc::c_int,
+            policy: libc::c_int,
+        ) -> libc::c_int;
+    }
+    // SAFETY: plain integer arguments; the call only changes this process's I/O policy.
+    let status = unsafe {
+        setiopolicy_np(
+            IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES,
+            IOPOL_SCOPE_PROCESS,
+            IOPOL_MATERIALIZE_DATALESS_FILES_OFF,
+        )
+    };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error().into())
     }
 }
 

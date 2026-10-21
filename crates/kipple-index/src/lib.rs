@@ -8,4 +8,5 @@ mod path_bytes;
 mod schema;
 
 pub use index::{Cursor, IndexDb, Page};
+pub use rusqlite::Error;
 pub use schema::SCHEMA_VERSION;
