@@ -965,10 +965,11 @@ mod tests {
         assert_eq!(names(&db.search("a.pdf", None, 10).unwrap()), ["a.pdf"]);
     }
 
+    /// The items' paths with `/` separators: Windows stores `ROOT` as `\Users\zoe\Downloads`.
     fn paths(items: &[Item]) -> Vec<String> {
         let mut paths: Vec<_> = items
             .iter()
-            .map(|i| i.identity.path.to_string_lossy().into_owned())
+            .map(|i| i.identity.path.to_string_lossy().replace('\\', "/"))
             .collect();
         paths.sort();
         paths
