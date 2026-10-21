@@ -127,6 +127,15 @@ mod tests {
         }
     }
 
+    /// The table's Unix-style absolute paths, made absolute on Windows too (`C:/Users/…`).
+    fn absolute(path: &str) -> String {
+        if cfg!(windows) && path.starts_with('/') {
+            format!("C:{path}")
+        } else {
+            path.to_string()
+        }
+    }
+
     fn location(root: &str, case_sensitive: bool) -> Location {
         Location {
             id: LocationId(1),
@@ -172,8 +181,9 @@ mod tests {
             ("/Users/zoë/Downloads", false, "/Users/zoe\u{0308}/Downloads/b.pdf", false),
         ];
         for (root, case_sensitive, path, inside) in cases {
+            let (root, path) = (absolute(root), absolute(path));
             assert_eq!(
-                location(root, case_sensitive).contains(Path::new(path)),
+                location(&root, case_sensitive).contains(Path::new(&path)),
                 inside,
                 "{root} (case-sensitive: {case_sensitive}) ∋ {path}"
             );
