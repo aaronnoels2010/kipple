@@ -76,6 +76,11 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             get_locale,
             crate::appearance::get_appearance,
             crate::appearance::set_theme_preference,
+            crate::locations::locations_list,
+            crate::locations::locations_add_default,
+            crate::locations::locations_add_via_dialog,
+            crate::locations::locations_remove,
+            crate::locations::locations_set_enabled,
         ])
         .events(tauri_specta::collect_events![
             crate::appearance::AppearanceChanged

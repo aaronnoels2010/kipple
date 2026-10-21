@@ -7,7 +7,9 @@ use std::path::Path;
 use kipple_core::category::{TypeCategory, extension_of};
 use kipple_core::identity::{ContentHash, ContentStamp, FileId, Identity, VolumeId};
 use kipple_core::item::{Item, ItemId, ItemKind};
-use kipple_core::location::{Location, LocationId};
+use kipple_core::location::{
+    Location, LocationId, LocationKind, StorageKind, TrashSupport, VolumeCaps,
+};
 use kipple_core::time::Timestamp;
 use rusqlite::{Connection, OptionalExtension, Result, Row, ToSql, params};
 
@@ -72,6 +74,23 @@ impl IndexDb {
         conn.pragma_update(None, "cache_size", -65_536)?;
         conn.pragma_update(None, "temp_store", "MEMORY")?;
         Self::init(conn)
+    }
+
+    /// Like [`IndexDb::open`], but a damaged index never stops Kipple: the file (and its WAL
+    /// files) is moved aside as `index.db.broken…` and a fresh one is started; if even that
+    /// fails, an in-memory index. The index is a cache, so a rescan refills it. Also returns why
+    /// the old one was dropped, for the log.
+    pub fn open_or_recreate(path: &Path) -> (Self, Option<String>) {
+        let reason = match Self::open(path) {
+            Ok(db) => return (db, None),
+            Err(e) => e.to_string(),
+        };
+        move_aside(path);
+        match Self::open(path).or_else(|_| Self::open_in_memory()) {
+            Ok(db) => (db, Some(reason)),
+            // An in-memory database with the schema can't fail short of running out of memory.
+            Err(e) => panic!("can't even create an in-memory index: {e}"),
+        }
     }
 
     pub fn open_in_memory() -> Result<Self> {
@@ -140,6 +159,41 @@ impl IndexDb {
                 location.in_sync_root,
             ],
         )?;
+        Ok(())
+    }
+
+    /// Every Location in the index, by ID.
+    pub fn locations(&self) -> Result<Vec<Location>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT id, path, kind, enabled, volume_id, online, last_seen_online_at, cap_trash, \
+               cap_case_sensitive, cap_stable_ids, cap_storage, in_sync_root FROM location ORDER BY id",
+        )?;
+        stmt.query_map([], |r| {
+            Ok(Location {
+                id: LocationId(r.get(0)?),
+                path: path_bytes::decode(&r.get::<_, Vec<u8>>(1)?),
+                kind: code(r, 2, LocationKind::from_code)?,
+                enabled: r.get(3)?,
+                volume: VolumeId(r.get(4)?),
+                online: r.get(5)?,
+                last_seen_online: r.get::<_, Option<i64>>(6)?.map(Timestamp),
+                caps: VolumeCaps {
+                    trash: code(r, 7, TrashSupport::from_code)?,
+                    case_sensitive: r.get(8)?,
+                    stable_file_ids: r.get(9)?,
+                    storage: code(r, 10, StorageKind::from_code)?,
+                },
+                in_sync_root: r.get(11)?,
+            })
+        })?
+        .collect()
+    }
+
+    /// Removes a Location and, with it, all its Items.
+    pub fn delete_location(&mut self, id: LocationId) -> Result<()> {
+        // Items (and their candidates) cascade; the search triggers clean up the name index.
+        self.conn
+            .execute("DELETE FROM location WHERE id = ?1", [id.0])?;
         Ok(())
     }
 
@@ -320,6 +374,30 @@ impl IndexDb {
     }
 }
 
+/// Moves a damaged `index.db` and its WAL files aside (`index.db.broken-<n>`), keeping them for a
+/// bug report instead of deleting them.
+// Kipple's own cache file, not a user file: ADR-0002's Executor rule covers managed locations.
+#[allow(clippy::disallowed_methods)]
+fn move_aside(path: &Path) {
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let free = (1..)
+        .find(|n| !path.with_file_name(format!("{name}.broken-{n}")).exists())
+        .unwrap_or(1);
+    for suffix in ["", "-wal", "-shm"] {
+        let from = path.with_file_name(format!("{name}{suffix}"));
+        if from.exists() {
+            let _ = std::fs::rename(
+                &from,
+                path.with_file_name(format!("{name}.broken-{free}{suffix}")),
+            );
+        }
+    }
+}
+
 /// Column `idx` read as a stable code.
 fn code<T>(r: &Row, idx: usize, from_code: fn(&str) -> Option<T>) -> Result<T> {
     let text: String = r.get(idx)?;
@@ -440,6 +518,29 @@ mod tests {
                     .into_owned()
             })
             .collect()
+    }
+
+    #[test]
+    fn locations_round_trip_and_deleting_one_removes_its_items() {
+        let mut db = db_with(&[item("a.pdf", 1)]);
+        let mut usb = location();
+        usb.id = LocationId(2);
+        usb.path = "/Volumes/USB".into();
+        usb.kind = LocationKind::ExternalDrive;
+        usb.online = false;
+        usb.last_seen_online = None;
+        usb.caps.trash = TrashSupport::No;
+        usb.caps.storage = StorageKind::Removable;
+        usb.in_sync_root = true;
+        db.put_location(&usb).unwrap();
+        assert_eq!(db.locations().unwrap(), vec![location(), usb.clone()]);
+
+        db.delete_location(LocationId(1)).unwrap();
+        assert_eq!(db.locations().unwrap(), vec![usb]);
+        assert!(
+            db.search("a.pdf", None, 10).unwrap().items.is_empty(),
+            "its items went with it"
+        );
     }
 
     #[test]
@@ -678,6 +779,31 @@ mod tests {
             plan.contains("name>?") || plan.contains("(name,id)>(?,?)"),
             "{plan}"
         );
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods)] // test fixture
+    fn a_damaged_index_is_moved_aside_and_recreated() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("index.db");
+        std::fs::write(&path, b"this is not a database, it's a shopping list").unwrap();
+        assert!(IndexDb::open(&path).is_err());
+        let (mut db, reason) = IndexDb::open_or_recreate(&path);
+        assert!(reason.is_some());
+        db.put_location(&location()).unwrap();
+        db.upsert_items(&[item("a.pdf", 1)], Timestamp(1)).unwrap();
+        assert!(path.exists(), "a fresh file, not in memory");
+        let moved: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with("index.db.broken"))
+            .collect();
+        assert_eq!(moved.len(), 1, "{moved:?}");
+        // A healthy index opens as is.
+        drop(db);
+        let (db, reason) = IndexDb::open_or_recreate(&path);
+        assert!(reason.is_none());
+        assert_eq!(db.locations().unwrap().len(), 1);
     }
 
     #[test]

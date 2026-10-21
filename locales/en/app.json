@@ -1,7 +1,6 @@
 {
   "common.files": "{count, plural, one {# file} other {# files}}",
   "trash.name": "{os, select, windows {Recycle Bin} other {Trash}}",
-
   "nav.label": "Sections",
   "nav.overview": "Overview",
   "nav.browse": "Browse",
@@ -10,10 +9,8 @@
   "nav.tidy": "Tidy",
   "nav.history": "History",
   "nav.settings": "Settings",
-
   "search.placeholder": "Search files",
   "topbar.history": "Open History",
-
   "empty.overview.title": "Nothing scanned yet",
   "empty.overview.body": "Once Kipple has looked through your folders, this is where you'll see what can go.",
   "empty.browse.title": "No locations yet",
@@ -26,7 +23,6 @@
   "empty.tidy.body": "Presets sort a folder by type or date. You always see the result before anything moves.",
   "empty.history.title": "Nothing has happened yet",
   "empty.history.body": "Everything Kipple changes shows up here, and you can undo it.",
-
   "settings.appearance": "Appearance",
   "settings.theme": "Theme",
   "settings.theme.light": "Light",
@@ -34,7 +30,6 @@
   "settings.theme.system": "System",
   "settings.about": "About Kipple",
   "settings.version": "Version {version}",
-
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.close": "Close",
   "shortcuts.search": "Search",
@@ -50,5 +45,30 @@
   "shortcuts.dismiss": "Close dialog or preview",
   "shortcuts.help": "Show these shortcuts",
   "key.space": "Space",
-  "key.delete": "Delete"
+  "key.delete": "Delete",
+  "settings.locations": "Locations",
+  "locations.intro": "Kipple only looks at these folders. Switching one off pauses it; its files stay where they are.",
+  "locations.folder.desktop": "Desktop",
+  "locations.folder.downloads": "Downloads",
+  "locations.folder.documents": "Documents",
+  "locations.folder.pictures": "Pictures",
+  "locations.folder.music": "Music",
+  "locations.folder.videos": "Videos",
+  "locations.add": "Add folder…",
+  "locations.remove": "Stop managing {name}",
+  "locations.offline": "Offline",
+  "locations.syncRoot": "Synced to the cloud",
+  "locations.error.notAFolder": "That isn't a folder Kipple can open.",
+  "locations.error.unsupportedName": "Kipple can't manage a folder with this name.",
+  "locations.error.protected": "That's a system or protected folder, so Kipple leaves it alone.",
+  "locations.error.alreadyAdded": "That folder is already in your list.",
+  "locations.error.insideLocation": "That folder is already inside one of your locations.",
+  "locations.error.containsLocation": "That folder contains one of your locations. Remove that one first.",
+  "locations.error.unreadable": "Kipple couldn't read that folder.",
+  "locations.error.storageFailed": "Kipple couldn't save your locations. Try again.",
+  "locations.error.notFound": "That location no longer exists.",
+  "locations.error.dialogFailed": "The folder picker couldn't open.",
+  "locations.error.unknown": "Something went wrong with that folder. Try again.",
+  "locations.retry": "Try again",
+  "locations.error.defaultMissing": "This folder doesn't exist on this computer."
 }

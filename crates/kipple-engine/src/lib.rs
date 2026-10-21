@@ -2,3 +2,5 @@
 //! Jobs, scanner, watcher, enrichers, plan store, executor, rule runner, scheduler.
 
 #![forbid(unsafe_code)]
+
+pub mod locations;

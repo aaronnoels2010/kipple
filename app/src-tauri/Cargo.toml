@@ -20,7 +20,12 @@ path = "src/main.rs"
 tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
+kipple-core = { path = "../../crates/kipple-core" }
+kipple-engine = { path = "../../crates/kipple-engine" }
+kipple-index = { path = "../../crates/kipple-index" }
+kipple-platform = { path = "../../crates/kipple-platform" }
 tauri = { version = "=2.12.1", features = [] }
+tauri-plugin-dialog = "=2.8.1"
 tauri-plugin-opener = "=2.7.0"
 tauri-plugin-single-instance = "=2.5.2"
 serde = { version = "1", features = ["derive"] }

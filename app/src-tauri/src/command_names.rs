@@ -7,4 +7,9 @@ const COMMAND_NAMES: &[&str] = &[
     "get_locale",
     "get_appearance",
     "set_theme_preference",
+    "locations_list",
+    "locations_add_default",
+    "locations_add_via_dialog",
+    "locations_remove",
+    "locations_set_enabled",
 ];

@@ -10,6 +10,11 @@
     "allow-get-locale",
     "allow-get-appearance",
     "allow-set-theme-preference",
+    "allow-locations-list",
+    "allow-locations-add-default",
+    "allow-locations-add-via-dialog",
+    "allow-locations-remove",
+    "allow-locations-set-enabled",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

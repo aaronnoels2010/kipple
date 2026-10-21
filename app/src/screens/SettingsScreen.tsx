@@ -1,29 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FormattedMessage } from "react-intl";
 
 import { commands, type ThemePreference } from "../bindings";
+import { Card } from "../components/Card";
 import { useAppearance } from "../theme/useAppearance";
+import { LocationsCard } from "./LocationsCard";
 
 const THEMES = [
   { value: "light", icon: Sun, label: "settings.theme.light" },
   { value: "dark", icon: Moon, label: "settings.theme.dark" },
   { value: "system", icon: Monitor, label: "settings.theme.system" },
 ] as const satisfies readonly { value: ThemePreference; icon: unknown; label: string }[];
-
-function Card({ title, children }: { title: ReactNode; children: ReactNode }) {
-  const id = useId();
-  return (
-    <section aria-labelledby={id} className="rounded-lg border border-border bg-surface p-4 shadow-1">
-      <h2 id={id} className="mb-3 font-semibold">
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
 
 function ThemeSwitch() {
   const labelId = useId();
@@ -76,6 +66,7 @@ export function SettingsScreen() {
   const version = useVersion();
   return (
     <div className="grid max-w-[640px] gap-4">
+      <LocationsCard />
       <Card title={<FormattedMessage id="settings.appearance" />}>
         <ThemeSwitch />
       </Card>

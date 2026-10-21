@@ -4,13 +4,14 @@
 //! losing the rest, keys from a newer Kipple are kept, and a file that isn't JSON is set aside as
 //! `settings.json.bad` instead of being overwritten.
 
-use std::io::Write;
 use std::path::Path;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value};
 use specta::Type;
+
+use crate::own_files::{Access, set_aside, write_atomic};
 
 const VERSION: u32 = 1;
 
@@ -55,29 +56,12 @@ pub fn load(path: &Path) -> Settings {
     }
 }
 
-// Kipple's own config file, not a user file: ADR-0002's Executor rule covers files in managed
-// locations only.
-#[allow(clippy::disallowed_methods)]
-fn set_aside(path: &Path) {
-    let _ = std::fs::rename(path, path.with_extension("json.bad"));
-}
-
-/// Writes atomically (synced temporary file + rename), creating the config folder if needed.
-#[allow(clippy::disallowed_methods)] // see `set_aside`
+/// Writes atomically, creating the config folder if needed.
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
     let mut settings = settings.clone();
     settings.version = settings.version.max(VERSION);
     let text = serde_json::to_string_pretty(&settings)? + "\n";
-
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let mut file = std::fs::File::create(&tmp)?;
-    file.write_all(text.as_bytes())?;
-    file.sync_all()?; // the rename must never expose an empty file after a power loss
-    drop(file);
-    std::fs::rename(&tmp, path)
+    write_atomic(path, text.as_bytes(), Access::Normal)
 }
 
 #[cfg(test)]

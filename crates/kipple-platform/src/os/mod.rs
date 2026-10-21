@@ -17,6 +17,15 @@ pub use windows::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
 
 use crate::SyncProvider;
 
+/// `path` with symlinks (and junctions) resolved, in the form the rest of Kipple compares: on
+/// Windows without the `\\?\` prefix `canonicalize` adds.
+pub fn canonical(path: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    #[cfg(windows)]
+    return windows::resolve(path);
+    #[cfg(not(windows))]
+    std::fs::canonicalize(path)
+}
+
 /// The provider of a macOS File Provider folder in `~/Library/CloudStorage`, by its name
 /// (`OneDrive-Personal`, `Dropbox`, `GoogleDrive-zoe@example.com`, `Box-Box`…).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]

@@ -14,6 +14,7 @@ Kipple stores three kinds of data with very different lifecycles:
 - **`state.db`** (SQLite, WAL, **`synchronous=FULL`**) holds plans, the journal, marks, **tags**, stats and location size history. It gets forward-only migrations, with an automatic backup copy before each migration.
 - **`config/*.json`** holds human-readable, schema-versioned settings, rules, rename presets and tidy presets. Export/import works on these files, and the config dir can be pointed at a user-synced folder. Imported rules always arrive disabled.
 - Thumbnails and logs live in the cache and log dirs and are disposable.
+- **Amendment (K-2.4): Locations live in `<app data dir>/locations.json`**, written atomically. They are user decisions that a rescan can't rebuild, so they can't live only in the disposable `index.db`, whose `location` table now just mirrors the file (refilled at startup, rows not in the file removed). They aren't in the portable `config/` folder either: paths and volume IDs belong to one computer, and syncing them to another would point at the wrong folders.
 - **"Remove all Kipple data"** in settings deletes all of these. This is needed because the `.dmg`, AppImage and portable builds have no uninstaller.
 
 ## Consequences

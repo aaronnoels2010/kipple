@@ -175,21 +175,9 @@ fn load_or_create_key(path: &Path) -> [u8; 32] {
     key
 }
 
-/// Writes the key atomically (synced temporary file + rename), readable only by the user on Unix.
-#[allow(clippy::disallowed_methods)] // see `load_or_create_key`
+/// Writes the key atomically, readable only by the user on Unix.
 fn store_key(path: &Path, key: &[u8; 32]) -> io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("key.tmp");
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    let mut file = options.open(&tmp)?;
-    file.write_all(key)?;
-    file.sync_all()?;
-    std::fs::rename(&tmp, path)
+    crate::own_files::write_atomic(path, key, crate::own_files::Access::Private)
 }
 
 #[cfg(test)]

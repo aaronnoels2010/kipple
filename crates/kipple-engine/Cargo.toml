@@ -9,6 +9,12 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+kipple-core = { path = "../kipple-core" }
+kipple-platform = { path = "../kipple-platform" }
+thiserror = "=2.0.21"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
 
 [lints]
 workspace = true

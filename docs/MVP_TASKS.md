@@ -188,7 +188,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - K-2.6 (walker): turn off cloud downloads for the whole process (macOS `setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, OFF)`, Windows `RtlSetProcessPlaceholderCompatibilityMode(PHCM_EXPOSE_PLACEHOLDERS)`), take placeholder attributes from the directory listing, check the Google Drive virtual drive (G:), cache `/proc/self/mountinfo` and the by-uuid lookup per scan, and confirm macOS bundles by `Contents/Info.plist` instead of the name only.
     - K-2.4/K-2.6: btrfs subvolumes share one filesystem UUID but can't rename across each other (`EXDEV`).
     - Windows sync roots: filter `UserSyncRoots` by the current user's SID instead of "folder exists". Linux network detection misses bare `fuse`, `virtiofs`, `vboxsf`, `afs` (treated as local).
-- [ ] **K-2.4 Location management** · M
+- [x] **K-2.4 Location management** · M
   - **Done when:**
     - The default user folders can be toggled.
     - "Add folder" works **through a native dialog invoked from Rust** and returns a token.
@@ -196,6 +196,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Offline locations keep their items and are never treated as deleted.
     - The sync-root flag is set.
     - Commands: `locations.*`.
+  - **Notes:** Locations are stored in `locations.json` (ADR-0003 amendment); the index mirrors them. The "no Trash" badge waits for K-4.6 (until then macOS and Windows report "unknown" for every volume). Onboarding (which default folders start on) and the `location.online_changed` event come with K-2.6 / onboarding. From the K-2.4 review, still open: default folder rows don't show the offline / synced badges yet (iCloud Desktop & Documents and OneDrive Known Folder Move are the common sync cases); a folder picked in the dialog that *is* a default folder is stored as custom; a missing default folder (no Music) could be hidden instead of erroring.
 - [ ] **K-2.5 Job scheduler** · M
   - **Done when:**
     - The queue has priorities (interactive > scan > enrich > hash > thumbnails).
@@ -214,6 +215,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Commands: `scan.start | pause | resume | cancel | status`.
     - Tests use temp trees, and the K-0.5 targets are met.
   - **Notes from K-2.2:** normalise paths before they reach the index (`/r/` and `/r` are different rows today; a path without a file name is stored with the whole path as its name).
+  - **From the K-2.4 review:** a Location may *contain* protected folders (a whole drive with `$Recycle.Bin`, a portable `KippleData` inside Downloads): the walker must skip every protected path it meets, not only check the Location's root.
 - [ ] **K-2.7 Enrichers** · M
   - **Done when:**
     - Download origin is read on all three OSes.

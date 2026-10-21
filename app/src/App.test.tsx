@@ -216,7 +216,7 @@ describe("App shell", () => {
     expect(await screen.findByText("Version 1.2.3")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "About Kipple" })).toBeInTheDocument();
     await waitFor(() =>
-      expect([...new Set(calls)].sort()).toEqual(["app_info", "get_appearance", "get_locale"]),
+      expect([...new Set(calls)].sort()).toEqual(["app_info", "get_appearance", "get_locale", "locations_list"]),
     );
   });
 

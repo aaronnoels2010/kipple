@@ -1,7 +1,6 @@
 {
   "common.files": "{count, plural, one {# bestand} other {# bestanden}}",
   "trash.name": "{os, select, macos {Prullenmand} other {Prullenbak}}",
-
   "nav.label": "Onderdelen",
   "nav.overview": "Overzicht",
   "nav.browse": "Bladeren",
@@ -10,10 +9,8 @@
   "nav.tidy": "Ordenen",
   "nav.history": "Geschiedenis",
   "nav.settings": "Instellingen",
-
   "search.placeholder": "Bestanden zoeken",
   "topbar.history": "Geschiedenis openen",
-
   "empty.overview.title": "Nog niets gescand",
   "empty.overview.body": "Zodra Kipple je mappen heeft doorzocht, zie je hier wat er weg kan.",
   "empty.browse.title": "Nog geen locaties",
@@ -26,7 +23,6 @@
   "empty.tidy.body": "Voorinstellingen sorteren een map op type of datum. Je ziet altijd eerst het resultaat voordat er iets verplaatst wordt.",
   "empty.history.title": "Er is nog niets gebeurd",
   "empty.history.body": "Alles wat Kipple verandert, verschijnt hier, en je kunt het ongedaan maken.",
-
   "settings.appearance": "Weergave",
   "settings.theme": "Thema",
   "settings.theme.light": "Licht",
@@ -34,7 +30,6 @@
   "settings.theme.system": "Systeem",
   "settings.about": "Over Kipple",
   "settings.version": "Versie {version}",
-
   "shortcuts.title": "Sneltoetsen",
   "shortcuts.close": "Sluiten",
   "shortcuts.search": "Zoeken",
@@ -50,5 +45,30 @@
   "shortcuts.dismiss": "Venster of voorbeeld sluiten",
   "shortcuts.help": "Deze sneltoetsen tonen",
   "key.space": "Spatie",
-  "key.delete": "Delete"
+  "key.delete": "Delete",
+  "settings.locations": "Locaties",
+  "locations.intro": "Kipple kijkt alleen in deze mappen. Zet je een map uit, dan pauzeert Kipple die map; de bestanden blijven waar ze zijn.",
+  "locations.folder.desktop": "Bureaublad",
+  "locations.folder.downloads": "Downloads",
+  "locations.folder.documents": "Documenten",
+  "locations.folder.pictures": "Afbeeldingen",
+  "locations.folder.music": "Muziek",
+  "locations.folder.videos": "Video's",
+  "locations.add": "Map toevoegen…",
+  "locations.remove": "{name} niet meer beheren",
+  "locations.offline": "Offline",
+  "locations.syncRoot": "Gesynchroniseerd met de cloud",
+  "locations.error.notAFolder": "Dat is geen map die Kipple kan openen.",
+  "locations.error.unsupportedName": "Kipple kan geen map met deze naam beheren.",
+  "locations.error.protected": "Dat is een systeemmap of beschermde map, daar komt Kipple niet aan.",
+  "locations.error.alreadyAdded": "Die map staat al in je lijst.",
+  "locations.error.insideLocation": "Die map zit al in een van je locaties.",
+  "locations.error.containsLocation": "Die map bevat een van je locaties. Verwijder die eerst.",
+  "locations.error.unreadable": "Kipple kon die map niet lezen.",
+  "locations.error.storageFailed": "Kipple kon je locaties niet bewaren. Probeer het opnieuw.",
+  "locations.error.notFound": "Die locatie bestaat niet meer.",
+  "locations.error.dialogFailed": "De mapkiezer kon niet openen.",
+  "locations.error.unknown": "Er ging iets mis met die map. Probeer het opnieuw.",
+  "locations.retry": "Opnieuw proberen",
+  "locations.error.defaultMissing": "Deze map bestaat niet op deze computer."
 }

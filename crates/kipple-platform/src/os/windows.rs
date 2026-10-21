@@ -45,7 +45,7 @@ fn from_wide(buf: &[u16]) -> OsString {
 
 /// `path` with links (symlinks, junctions, mapped folders) resolved and without the `\\?\`
 /// prefix `canonicalize` adds: `C:\data` linked to `\\nas\share` must be judged as the share.
-fn resolve(path: &Path) -> io::Result<PathBuf> {
+pub(crate) fn resolve(path: &Path) -> io::Result<PathBuf> {
     use std::path::{Component, Prefix};
     let canonical = std::fs::canonicalize(path)?;
     let mut components = canonical.components();

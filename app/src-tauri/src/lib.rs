@@ -4,8 +4,11 @@
 
 mod appearance;
 mod ipc;
+mod locations;
+mod locations_store;
 mod logging;
 mod navigation;
+mod own_files;
 mod portable;
 mod redact;
 mod settings;
@@ -39,6 +42,9 @@ pub fn run() {
                 .open_js_links_on_click(false)
                 .build(),
         )
+        // Rust opens the native folder dialog itself (ADR-0007); the webview gets no dialog
+        // permission, so it can't open one, let alone pass a path.
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             // First, so everything after it is logged. Without these folders, run unlogged.
             let paths = app.path();
@@ -65,9 +71,17 @@ pub fn run() {
                 .join("config")
                 .join("settings.json");
             app.manage(AppearanceState::load(settings_path));
+            app.manage(locations::LocationsState::from_app(app.handle())?);
             let state = app.state::<AppearanceState>();
 
             let window = create_main_window(app.handle(), state.preference())?;
+            // Online checks can be slow (a disconnected network share): after the window is up.
+            let locations = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                locations
+                    .state::<locations::LocationsState>()
+                    .refresh_online();
+            });
             appearance::init(&window, &state);
             let (handle, observed) = (app.handle().clone(), window.clone());
             window.on_window_event(move |event| {

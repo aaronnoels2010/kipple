@@ -16,6 +16,28 @@ export const commands = {
 	getLocale: () => __TAURI_INVOKE<string | null>("get_locale"),
 	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
 	setThemePreference: (preference: ThemePreference) => typedError<Appearance, Coded>(__TAURI_INVOKE("set_theme_preference", { preference })),
+	/**  Every Location, with its online state checked now. */
+	locationsList: () => typedError<LocationView[], Coded>(__TAURI_INVOKE("locations_list")),
+	/**  Adds one of the default user folders. */
+	locationsAddDefault: (folder: DefaultFolder) => typedError<LocationView, Coded>(__TAURI_INVOKE("locations_add_default", { folder })),
+	/**
+	 *  Lets the user pick a folder in the OS's own dialog and adds it. `None` if they cancelled (or
+	 *  a dialog is already open).
+	 */
+	locationsAddViaDialog: () => typedError<{
+	id: number,
+	kind: string,
+	/**  For display only: the UI never sends it back. */
+	path: string,
+	enabled: boolean,
+	online: boolean,
+	in_sync_root: boolean,
+	can_trash: boolean,
+} | null, Coded>(__TAURI_INVOKE("locations_add_via_dialog")),
+	/**  Stops managing a Location and forgets its Items (the files themselves are untouched). */
+	locationsRemove: (id: number) => typedError<null, Coded>(__TAURI_INVOKE("locations_remove", { id })),
+	/**  Pauses or resumes a Location: a disabled one isn't scanned or cleaned, its Items stay. */
+	locationsSetEnabled: (id: number, enabled: boolean) => typedError<LocationView, Coded>(__TAURI_INVOKE("locations_set_enabled", { id, enabled })),
 };
 
 /** Events */
@@ -48,6 +70,21 @@ export type AppearanceChanged = {
 export type Coded = {
 	code: string,
 	params: { [key in string]: Param },
+};
+
+/**  The default user folders Kipple offers (FUNCTIONAL_PLAN §1). */
+export type DefaultFolder = "desktop" | "downloads" | "documents" | "pictures" | "music" | "videos";
+
+/**  A Location as the UI shows it. `kind` is a stable code (`downloads`, `custom`, `external`…). */
+export type LocationView = {
+	id: number,
+	kind: string,
+	/**  For display only: the UI never sends it back. */
+	path: string,
+	enabled: boolean,
+	online: boolean,
+	in_sync_root: boolean,
+	can_trash: boolean,
 };
 
 /**
