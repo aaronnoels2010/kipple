@@ -1,0 +1,72 @@
+# Spike S8 (K-1.11): idle memory of the tray-only process, webview destroyed vs hidden, on
+# Windows, macOS and Linux runners. Manual only: Actions → "Spike S8 · idle memory" → Run workflow.
+name: Spike S8 · idle memory
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Runs per mode (median is reported)"
+        default: "3"
+        required: true
+      idle:
+        description: "Seconds of idle time before measuring"
+        default: "30"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Linux libraries and a virtual display
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev xvfb
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Build the real Kipple UI (loaded by the spike)
+        run: pnpm install --frozen-lockfile && pnpm -C app build
+      - name: Build the spike
+        run: cargo build --release --manifest-path spikes/s8-idle-memory/src-tauri/Cargo.toml
+      - name: Measure (macOS)
+        if: runner.os == 'macOS'
+        env: { RUNS: "${{ inputs.runs }}", IDLE: "${{ inputs.idle }}" }
+        run: bash spikes/s8-idle-memory/measure.sh
+      - name: Measure (Linux)
+        if: runner.os == 'Linux'
+        env: { RUNS: "${{ inputs.runs }}", IDLE: "${{ inputs.idle }}" }
+        run: xvfb-run -a bash spikes/s8-idle-memory/measure.sh
+      - name: Measure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env: { RUNS: "${{ inputs.runs }}", IDLE: "${{ inputs.idle }}" }
+        run: ./spikes/s8-idle-memory/measure.ps1
+      - name: Job summary
+        if: always()
+        run: cat spikes/s8-idle-memory/out/results-*.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: idle-memory-${{ matrix.os }}
+          path: spikes/s8-idle-memory/out/

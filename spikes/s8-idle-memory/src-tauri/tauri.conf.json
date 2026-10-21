@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kipple S8",
+  "version": "0.0.1",
+  "identifier": "app.kipple.spike-s8",
+  "build": {
+    "frontendDist": "../../../app/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["../../../app/src-tauri/icons/icon.png", "../../../app/src-tauri/icons/icon.ico"]
+  }
+}

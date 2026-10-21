@@ -1,0 +1,19 @@
+[package]
+name = "kipple-spike-s8"
+version = "0.0.1"
+description = "Spike S8 (K-1.11): idle memory of the tray-only process, webview destroyed vs hidden. Throwaway."
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+# Standalone: never part of the main Cargo workspace.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = ["tray-icon"] }
+
+[profile.release]
+strip = true
