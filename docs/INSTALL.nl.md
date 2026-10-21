@@ -10,7 +10,7 @@ Download Kipple op de [Releases-pagina](https://github.com/aaronnoels2010/kipple
 |---|---|---|
 | **Windows 10/11** | `Kipple_<versie>_x64-setup.exe` | Aanbevolen. Installeert alleen voor jouw account, zonder beheerdersrechten, en werkt zichzelf bij |
 | | `Kipple_<versie>_x64_en-US.msi` | Voor beheerders die het voor alle gebruikers installeren |
-| | `Kipple_<versie>_x64-portable.zip` | Zonder installatie: uitpakken en `Kipple.exe` starten. Werkt zichzelf niet bij |
+| | `Kipple_<versie>_x64-portable.zip` | Zonder installatie: uitpakken en `Kipple.exe` starten. Bewaart alles in een map `KippleData` ernaast, dus het werkt vanaf een USB-stick. Werkt zichzelf niet bij |
 | **macOS 11 of nieuwer** (Apple silicon en Intel) | `Kipple_<versie>_universal.dmg` | |
 | **Linux** | `Kipple_<versie>_amd64.AppImage` | Werkt op de meeste distributies en werkt zichzelf bij |
 | | `Kipple_<versie>_amd64.deb` | Debian, Ubuntu, Linux Mint… |
@@ -23,6 +23,8 @@ Download Kipple op de [Releases-pagina](https://github.com/aaronnoels2010/kipple
 3. Volg het installatieprogramma. Kipple staat daarna in het Startmenu.
 
 Je ziet die waarschuwing alleen bij een nieuwe versie die je nog niet gestart hebt. De draagbare `.exe` toont ze de eerste keer ook.
+
+**Draagbare versie:** pak eerst de hele zip uit (*Alles uitpakken…*) en start dan `Kipple.exe` uit de uitgepakte map `Kipple`. Start je hem vanuit de zip, dan ziet hij zijn bestand `portable` niet en gebruikt hij je gebruikersprofiel, net als de geïnstalleerde versie. Draait de geïnstalleerde Kipple al, dan brengt het starten van de draagbare versie gewoon de geïnstalleerde naar voren: sluit die dan eerst af.
 
 ## macOS
 
@@ -84,4 +86,4 @@ gh attestation verify Kipple_<versie>_universal.dmg --repo aaronnoels2010/kipple
 - **macOS:** sleep Kipple vanuit Apps naar de prullenmand.
 - **Linux:** verwijder de AppImage, of `sudo apt remove kipple` / `sudo dnf remove kipple`.
 
-De instellingen en index van Kipple blijven daarna in je gebruikersprofiel staan. **Instellingen → Alle Kipple-gegevens verwijderen** haalt ze vanuit de app weg (komt in een latere versie, voor 1.0).
+De instellingen en index van Kipple blijven daarna in je gebruikersprofiel staan (de draagbare versie bewaart ze in haar map `KippleData`: verwijder die map ook). **Instellingen → Alle Kipple-gegevens verwijderen** haalt ze vanuit de app weg (komt in een latere versie, voor 1.0).

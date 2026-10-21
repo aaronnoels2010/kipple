@@ -10,7 +10,7 @@ Download Kipple from the [Releases page](https://github.com/aaronnoels2010/kippl
 |---|---|---|
 | **Windows 10/11** | `Kipple_<version>_x64-setup.exe` | Recommended. Installs for your account only, no admin needed, updates itself |
 | | `Kipple_<version>_x64_en-US.msi` | For administrators installing for every user |
-| | `Kipple_<version>_x64-portable.zip` | No installation: unzip and run `Kipple.exe`. Doesn't update itself |
+| | `Kipple_<version>_x64-portable.zip` | No installation: unzip and run `Kipple.exe`. Keeps everything in a `KippleData` folder next to it, so it runs from a USB stick. Doesn't update itself |
 | **macOS 11 or later** (Apple silicon and Intel) | `Kipple_<version>_universal.dmg` | |
 | **Linux** | `Kipple_<version>_amd64.AppImage` | Runs on most distributions, updates itself |
 | | `Kipple_<version>_amd64.deb` | Debian, Ubuntu, Linux Mint… |
@@ -23,6 +23,8 @@ Download Kipple from the [Releases page](https://github.com/aaronnoels2010/kippl
 3. Follow the installer. Kipple appears in the Start menu.
 
 You only see this warning for a new version you haven't run before. The portable `.exe` shows it the first time too.
+
+**Portable version:** extract the whole zip first (*Extract all…*), then run `Kipple.exe` from the extracted `Kipple` folder. Run from inside the zip, it can't see its `portable` file and uses your user profile like the installed version. If the installed Kipple is already running, starting the portable one just brings the installed one to the front: quit that first.
 
 ## macOS
 
@@ -84,4 +86,4 @@ gh attestation verify Kipple_<version>_universal.dmg --repo aaronnoels2010/kippl
 - **macOS:** drag Kipple from Applications to the Bin.
 - **Linux:** delete the AppImage, or `sudo apt remove kipple` / `sudo dnf remove kipple`.
 
-Kipple's settings and index stay in your user profile after that. **Settings → Remove all Kipple data** will remove them from inside the app (coming in a later version, before 1.0).
+Kipple's settings and index stay in your user profile after that (the portable version keeps them in its `KippleData` folder: delete that folder too). **Settings → Remove all Kipple data** will remove them from inside the app (coming in a later version, before 1.0).

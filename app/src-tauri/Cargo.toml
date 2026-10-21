@@ -38,6 +38,8 @@ tracing-log = "=0.2.0"
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "registry", "std"] }
 
 [dev-dependencies]
+# Tauri's mock runtime, for tests that need an app (portable.rs).
+tauri = { version = "=2.12.1", features = ["test"] }
 log = "=0.4.34"
 tempfile = "=3.27.0"
 # The TypeScript export only runs in the bindings test, never in the app.

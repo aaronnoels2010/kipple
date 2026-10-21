@@ -160,7 +160,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
 - [ ] **K-1.11 Spike S8: idle memory with the webview destroyed** · S
   - **Done when:** tray-only memory has been measured with the webview destroyed vs hidden on all three OSes, ADR-0004 is confirmed or adjusted, and the tray menu runs from the Rust catalog.
 
-- [ ] **K-1.12 Portable mode** · S
+- [x] **K-1.12 Portable mode** · S
   - **Done when:** with a `portable` file next to the executable (the Windows portable zip ships one), Kipple keeps its config, data, cache and logs in a `KippleData` folder beside it instead of the per-user app folders, and never offers to update itself. Found while building K-1.9: the release already ships the marker, but the app doesn't read it yet.
 ---
 
@@ -400,7 +400,7 @@ The safety foundation. **This slice gets the most thorough tests.**
 - [ ] **K-8.2 Settings** · M
   - **Done when:**
     - Language, theme, launch at login, thresholds and locations can be set.
-    - The **update check toggle** is there (off-path for MVP; v1 wires the updater).
+    - The **update check toggle** is there (off-path for MVP; v1 wires the updater, which must stay off in portable mode: `portable::is_portable`).
     - Config export/import works, and imported rules are disabled.
     - **Remove all Kipple data** works.
 - [ ] **K-8.3 Diagnostics export** · S

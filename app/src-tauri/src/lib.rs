@@ -6,6 +6,7 @@ mod appearance;
 mod ipc;
 mod logging;
 mod navigation;
+mod portable;
 mod redact;
 mod settings;
 
@@ -21,6 +22,8 @@ use tauri_plugin_opener::OpenerExt;
 const MAIN_WINDOW: &str = "main";
 
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    let mode = portable::apply(&mut context);
     let ipc = ipc::specta_builder();
     let invoke_handler = ipc.invoke_handler();
     tauri::Builder::default()
@@ -47,6 +50,14 @@ pub fn run() {
                 os = std::env::consts::OS,
                 "Kipple started"
             );
+            match &mode {
+                portable::Mode::Installed => {}
+                portable::Mode::Portable => tracing::info!("portable mode: data in KippleData"),
+                portable::Mode::Unwritable(error) => tracing::warn!(
+                    error = %error,
+                    "portable marker found but KippleData can't be created; using the user folders"
+                ),
+            }
             ipc.mount_events(app);
             let settings_path = app
                 .path()
@@ -67,7 +78,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("Kipple failed to start");
 }
 
