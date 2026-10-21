@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::VolumeCaps;
 
-pub use os::NativeVolumes;
+pub use os::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
 pub use protected::ProtectedPaths;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 
-use crate::{PortResult, VolumeInfo, Volumes};
+use crate::{Placeholders, PortResult, SyncProvider, SyncRoot, SyncRoots, VolumeInfo, Volumes};
 
 #[derive(Debug, Default, Clone)]
 pub struct NativeVolumes;
@@ -133,5 +133,63 @@ impl Volumes for NativeVolumes {
             fs_type,
             read_only,
         })
+    }
+}
+
+/// `SF_DATALESS`: the file's content lives in the cloud (iCloud, File Provider apps).
+const SF_DATALESS: u32 = 0x4000_0000;
+
+#[derive(Debug, Default, Clone)]
+pub struct NativePlaceholders;
+
+impl Placeholders for NativePlaceholders {
+    fn is_placeholder(&self, path: &Path) -> PortResult<bool> {
+        use std::os::macos::fs::MetadataExt;
+        // Older iCloud versions left `.Name.ext.icloud` stub files instead of dataless ones.
+        let stub = path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .is_some_and(|n| n.starts_with('.') && n.ends_with(".icloud"));
+        // Metadata only: reading the flags never downloads anything.
+        Ok(stub || std::fs::symlink_metadata(path)?.st_flags() & SF_DATALESS != 0)
+    }
+}
+
+/// iCloud Drive and every File Provider folder (`~/Library/CloudStorage/*`).
+#[derive(Debug, Clone)]
+pub struct NativeSyncRoots {
+    home: PathBuf,
+}
+
+impl NativeSyncRoots {
+    pub fn new(home: PathBuf) -> Self {
+        Self { home }
+    }
+}
+
+impl SyncRoots for NativeSyncRoots {
+    fn sync_roots(&self) -> PortResult<Vec<SyncRoot>> {
+        let library = self.home.join("Library");
+        let mut roots = Vec::new();
+        let icloud = library.join("Mobile Documents/com~apple~CloudDocs");
+        if icloud.is_dir() {
+            roots.push(SyncRoot {
+                path: icloud,
+                provider: SyncProvider::ICloudDrive,
+            });
+        }
+        // Missing on Macs that never used a File Provider app: that's "none", not an error.
+        if let Ok(entries) = std::fs::read_dir(library.join("CloudStorage")) {
+            for entry in entries.flatten() {
+                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    roots.push(SyncRoot {
+                        path: entry.path(),
+                        provider: super::provider_of_cloud_storage(&name),
+                    });
+                }
+            }
+        }
+        Ok(roots)
     }
 }

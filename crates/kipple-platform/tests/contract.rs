@@ -7,7 +7,10 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 use kipple_platform::fake::{FakePlaceholders, FakeSyncRoots, FakeVolumes};
-use kipple_platform::{NativeVolumes, PortError, VolumeInfo, Volumes};
+use kipple_platform::{
+    NativePlaceholders, NativeSyncRoots, NativeVolumes, Placeholders, PortError, SyncProvider,
+    SyncRoot, SyncRoots, VolumeInfo, Volumes, sync_root_of,
+};
 
 fn home() -> PathBuf {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
@@ -126,9 +129,93 @@ fn fake_volumes_meet_the_contract() {
     );
 }
 
+/// What every `Placeholders` must do: a normal local file is never a placeholder.
+fn placeholders_contract(placeholders: &dyn Placeholders, local_file: &Path) {
+    match placeholders.is_placeholder(local_file) {
+        Ok(is) => assert!(!is, "a file just written locally has its content"),
+        Err(PortError::Unsupported) => {}
+        Err(e) => panic!("is_placeholder: {e}"),
+    }
+}
+
+/// What every `SyncRoots` must do: real, absolute folders, each listed once.
+fn sync_roots_contract(sync_roots: &dyn SyncRoots) -> Option<Vec<SyncRoot>> {
+    match sync_roots.sync_roots() {
+        Ok(roots) => {
+            for root in &roots {
+                assert!(root.path.is_absolute() && root.path.is_dir(), "{root:?}");
+            }
+            let mut paths: Vec<_> = roots.iter().map(|r| &r.path).collect();
+            paths.dedup();
+            assert_eq!(paths.len(), roots.len(), "no duplicates");
+            Some(roots)
+        }
+        Err(PortError::Unsupported) => None,
+        Err(e) => panic!("sync_roots: {e}"),
+    }
+}
+
+#[test]
+fn native_placeholders_and_sync_roots_meet_the_contract() {
+    let (_keep, _dir, file) = temp_with_file();
+    placeholders_contract(&NativePlaceholders, &file);
+    let roots = sync_roots_contract(&NativeSyncRoots::new(home()));
+    eprintln!("sync roots: {roots:?}");
+    // Linux has neither; macOS and Windows always answer (possibly with none).
+    assert_eq!(roots.is_none(), cfg!(target_os = "linux"));
+    assert_eq!(
+        matches!(
+            NativePlaceholders.is_placeholder(&file),
+            Err(PortError::Unsupported)
+        ),
+        cfg!(target_os = "linux")
+    );
+}
+
+#[test]
+fn fake_placeholders_and_sync_roots_meet_the_contract() {
+    let (_keep, dir, file) = temp_with_file();
+    let placeholders = FakePlaceholders {
+        placeholders: Some(Default::default()),
+    };
+    placeholders_contract(&placeholders, &file);
+    let fake = FakeSyncRoots {
+        roots: Some(vec![SyncRoot {
+            path: dir.clone(),
+            provider: SyncProvider::OneDrive,
+        }]),
+    };
+    assert_eq!(sync_roots_contract(&fake).unwrap().len(), 1);
+}
+
+#[test]
+fn sync_root_of_finds_the_containing_root() {
+    let roots = [
+        SyncRoot {
+            path: PathBuf::from("/Users/zoe/Library/CloudStorage/OneDrive-Personal"),
+            provider: SyncProvider::OneDrive,
+        },
+        SyncRoot {
+            path: PathBuf::from("/Users/zoe/Library/Mobile Documents/com~apple~CloudDocs"),
+            provider: SyncProvider::ICloudDrive,
+        },
+    ];
+    let inside = Path::new("/Users/zoe/Library/CloudStorage/OneDrive-Personal/Docs/a.pdf");
+    if cfg!(windows) {
+        return; // the table uses Unix paths, which aren't absolute on Windows
+    }
+    assert_eq!(
+        sync_root_of(inside, &roots, false).map(|r| &r.provider),
+        Some(&SyncProvider::OneDrive)
+    );
+    assert_eq!(
+        sync_root_of(Path::new("/Users/zoe/Downloads/a.pdf"), &roots, false),
+        None
+    );
+}
+
 #[test]
 fn unsupported_fakes_say_so() {
-    use kipple_platform::{Placeholders, SyncRoots};
     assert!(matches!(
         FakePlaceholders::default().is_placeholder(Path::new("/x")),
         Err(PortError::Unsupported)

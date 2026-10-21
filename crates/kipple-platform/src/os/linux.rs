@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 
-use crate::{PortResult, VolumeInfo, Volumes};
+use crate::{Placeholders, PortError, PortResult, SyncRoot, SyncRoots, VolumeInfo, Volumes};
 
 #[derive(Debug, Clone)]
 pub struct NativeVolumes {
@@ -127,6 +127,32 @@ impl Volumes for NativeVolumes {
             read_only: mount.read_only,
             fs_type: mount.fs_type,
         })
+    }
+}
+
+/// Linux has no online-only files (FUSE and rclone mounts count as network drives instead).
+#[derive(Debug, Default, Clone)]
+pub struct NativePlaceholders;
+
+impl Placeholders for NativePlaceholders {
+    fn is_placeholder(&self, _path: &Path) -> PortResult<bool> {
+        Err(PortError::Unsupported)
+    }
+}
+
+/// Linux sync clients don't register their folders anywhere Kipple can read.
+#[derive(Debug, Clone)]
+pub struct NativeSyncRoots;
+
+impl NativeSyncRoots {
+    pub fn new(_home: PathBuf) -> Self {
+        Self
+    }
+}
+
+impl SyncRoots for NativeSyncRoots {
+    fn sync_roots(&self) -> PortResult<Vec<SyncRoot>> {
+        Err(PortError::Unsupported)
     }
 }
 

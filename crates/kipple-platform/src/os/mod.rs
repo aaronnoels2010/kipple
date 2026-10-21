@@ -9,11 +9,41 @@ mod macos;
 mod windows;
 
 #[cfg(target_os = "linux")]
-pub use linux::NativeVolumes;
+pub use linux::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
 #[cfg(target_os = "macos")]
-pub use macos::NativeVolumes;
+pub use macos::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
 #[cfg(windows)]
-pub use windows::NativeVolumes;
+pub use windows::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
+
+use crate::SyncProvider;
+
+/// The provider of a macOS File Provider folder in `~/Library/CloudStorage`, by its name
+/// (`OneDrive-Personal`, `Dropbox`, `GoogleDrive-zoe@example.com`, `Box-Box`…).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) fn provider_of_cloud_storage(folder: &str) -> SyncProvider {
+    let brand = folder.split('-').next().unwrap_or(folder);
+    match brand.to_ascii_lowercase().as_str() {
+        "onedrive" => SyncProvider::OneDrive,
+        "dropbox" => SyncProvider::Dropbox,
+        "googledrive" => SyncProvider::GoogleDrive,
+        "icloud" | "iclouddrive" => SyncProvider::ICloudDrive,
+        _ => SyncProvider::Other(folder.to_string()),
+    }
+}
+
+/// The provider of a Windows sync root, by its SyncRootManager key
+/// (`OneDrive!S-1-5-21-…!Personal`, `Dropbox!S-1-…!1`, `iCloudDrive!…`, `GoogleDriveFS!…`).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn provider_of_sync_root_key(key: &str) -> SyncProvider {
+    let brand = key.split('!').next().unwrap_or(key);
+    match brand.to_ascii_lowercase().as_str() {
+        "onedrive" => SyncProvider::OneDrive,
+        "dropbox" => SyncProvider::Dropbox,
+        "iclouddrive" | "icloud" => SyncProvider::ICloudDrive,
+        b if b.starts_with("googledrive") => SyncProvider::GoogleDrive,
+        _ => SyncProvider::Other(brand.to_string()),
+    }
+}
 
 /// Shared by the adapters: filesystems whose file IDs survive renames and remounts.
 pub(crate) fn has_stable_file_ids(fs_type: &str) -> bool {
@@ -60,4 +90,54 @@ pub(crate) fn is_network_fs(fs_type: &str) -> bool {
             | "fuse.rclone"
             | "fuse.s3fs"
     ) || fs.starts_with("fuse.") && fs != "fuse.portal"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn providers_by_cloud_storage_folder() {
+        assert_eq!(
+            provider_of_cloud_storage("OneDrive-Personal"),
+            SyncProvider::OneDrive
+        );
+        assert_eq!(
+            provider_of_cloud_storage("OneDrive-Contoso"),
+            SyncProvider::OneDrive
+        );
+        assert_eq!(provider_of_cloud_storage("Dropbox"), SyncProvider::Dropbox);
+        assert_eq!(
+            provider_of_cloud_storage("GoogleDrive-zoe@example.com"),
+            SyncProvider::GoogleDrive
+        );
+        assert_eq!(
+            provider_of_cloud_storage("Box-Box"),
+            SyncProvider::Other("Box-Box".into())
+        );
+    }
+
+    #[test]
+    fn providers_by_sync_root_key() {
+        assert_eq!(
+            provider_of_sync_root_key("OneDrive!S-1-5-21-1!Personal"),
+            SyncProvider::OneDrive
+        );
+        assert_eq!(
+            provider_of_sync_root_key("Dropbox!S-1-5-21-1!1"),
+            SyncProvider::Dropbox
+        );
+        assert_eq!(
+            provider_of_sync_root_key("iCloudDrive!S-1-5-21-1!x"),
+            SyncProvider::ICloudDrive
+        );
+        assert_eq!(
+            provider_of_sync_root_key("GoogleDriveFS!S-1!x"),
+            SyncProvider::GoogleDrive
+        );
+        assert_eq!(
+            provider_of_sync_root_key("Nextcloud!S-1!x"),
+            SyncProvider::Other("Nextcloud".into())
+        );
+    }
 }
