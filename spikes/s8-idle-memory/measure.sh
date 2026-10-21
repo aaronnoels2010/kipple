@@ -12,7 +12,8 @@ cd "$(dirname "$0")"
 
 BIN=src-tauri/target/release/kipple-spike-s8
 RUNS="${RUNS:-3}"
-IDLE="${IDLE:-30}"   # seconds after the hide/destroy (which happens 8 s after start)
+IDLE="${IDLE:-30}"   # seconds of idle after the window is loaded / hidden / destroyed
+READY_TIMEOUT=150     # Linux CI: window creation can block on a missing desktop portal
 OS="$(uname)"
 mkdir -p out
 RAW="out/raw-$OS.tsv"
@@ -75,11 +76,17 @@ for mode in ${MODES:-open hide destroy}; do
     WEBKIT_BEFORE="$( [ "$OS" = Darwin ] && webkit_pids || true )"
     S8_MODE=$mode "$BIN" 2>"out/$mode-$run.log" &
     pid=$!
-    sleep $((8 + IDLE))
+    # Wait for the app's own log line, not a fixed time: startup can be slow (see README).
+    ready="^S8: $mode -> Ok"
+    [ "$mode" = open ] && ready="^S8: page loaded"
+    started=$SECONDS valid=0
+    while [ $((SECONDS - started)) -lt "$READY_TIMEOUT" ]; do
+      if grep -q "$ready" "out/$mode-$run.log"; then valid=1; break; fi
+      sleep 1
+    done
+    echo "S8-measure: ready after $((SECONDS - started)) s (valid=$valid)" >> "out/$mode-$run.log"
+    sleep "$IDLE"
     read -r n rss priv < <(measure "$pid")
-    # Only count runs where the hide/destroy really happened (the app logs it).
-    valid=1
-    [ "$mode" = open ] || grep -q "^S8: $mode -> Ok" "out/$mode-$run.log" || valid=0
     if [ "$valid" = 0 ] && [ "$OS" = Linux ] && command -v gdb >/dev/null; then
       sudo -n gdb -p "$pid" -batch -ex 'thread apply all bt 25' > "out/$mode-$run.stacks" 2>&1 || true
     fi
