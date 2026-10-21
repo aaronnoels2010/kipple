@@ -166,7 +166,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
 
 ## Slice 2: Locations, scan & browse (→ M2)
 
-- [ ] **K-2.1 Core domain types** · S
+- [x] **K-2.1 Core domain types** · S
   - **Done when:** `Item`, `Location`, `TypeCategory`, facets, `VolumeCaps`, `Identity` and `ContentStamp` are defined in `kipple-core`, with extension → type classification and table-driven tests.
 - [ ] **K-2.2 index.db** · M
   - **Done when:**
@@ -174,6 +174,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - The index is rebuilt when the schema version changes.
     - Batched upserts and keyset pagination work.
     - A query benchmark shows search < 100 ms at 1M rows.
+  - **Notes from K-2.1:** store `FileId` (u128) as a 16-byte BLOB (it doesn't fit an SQLite INTEGER); give `ItemKind`, `LocationKind`, `TrashSupport` and `StorageKind` stable codes like `TypeCategory::code()`; add a column for `VolumeCaps.storage`.
 - [ ] **K-2.3 Platform ports framework** · L
   - **Done when:**
     - The traits from ARCH §8 exist with `Unsupported` handling.
@@ -209,7 +210,8 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
   - **Done when:**
     - Download origin is read on all three OSes.
     - The screenshot flag is set on all three OSes, including **localised names**.
-    - Unknown extensions are sniffed with `infer`.
+    - Unknown extensions are sniffed with `infer`, and so are ambiguous ones (`.ts`: TypeScript or MPEG transport stream; `.key`: Keynote or a key file).
+    - Setting the screenshot flag recomputes the type category (`TypeCategory::of`).
     - EXIF and dimensions are read.
     - Everything runs as low-priority batched jobs.
 - [ ] **K-2.8 Last-used signals (+ spike S3)** · M
@@ -291,6 +293,7 @@ The safety foundation. **This slice gets the most thorough tests.**
     - Error codes are classified (ARCH §7.2).
     - The apply policy (limits, `allow_permanent_delete`) is enforced.
     - Progress events are emitted.
+  - **Notes from K-2.1:** re-validate with `same_file && !may_differ` (inode reuse); a rename changes ctime, so compare undo against the stamp taken *after* each operation.
 - [ ] **K-4.6 Trash port with restore** · M
   - **Done when:**
     - `supports(volume)` works on all three OSes, using the rules proven in K-0.6 (ARCHITECTURE §8). A contract test asserts that **trash is never called on a Windows network drive or UNC path**, where S9 showed the call silently deletes permanently.
