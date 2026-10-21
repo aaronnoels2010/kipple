@@ -94,7 +94,7 @@ flowchart TB
 | i18n | **FormatJS / react-intl** (ICU MessageFormat) in the UI; **ICU4X** (`icu_plurals`, `icu_decimal`) for the small Rust-side catalog | One source: `locales/` |
 | OS locale | `sys-locale` (read in Rust, passed to the UI) | `navigator.language` in WKWebView may not reflect the OS language |
 | Database | **SQLite** via `rusqlite` (bundled), WAL mode, **FTS5 trigram** for name search | |
-| Async / parallelism | `tokio` (orchestration, I/O), `rayon` (CPU-bound hashing/decoding) | |
+| Async / parallelism | `tokio` (orchestration, I/O), `rayon` (CPU-bound hashing/decoding) | Background jobs are blocking code (walker, hashing): the job scheduler gives each running job its own thread instead of a tokio task (§7.1) |
 | File walking | `ignore` crate's parallel walker **with `standard_filters(false)`** | Otherwise it silently skips hidden and gitignored files. A Windows fast path may be needed (§7.1, S4) |
 | File watching | `notify` + `notify-debouncer-full` | |
 | Hashing | `blake3` | |
@@ -270,8 +270,11 @@ sequenceDiagram
 6. **Hash lazily:** group by size, then compute a quick hash (first + last 64 KiB) for groups larger than 1, then a full BLAKE3 hash where quick hashes collide.
 7. **Detect:** detectors **stream** over the index (SQL-backed iterators) and never load the full index into memory.
 
-**Concurrency limits** depend on the kind of volume (SSD high, HDD/network low).
-**Scan pause/resume/cancel** uses cooperative cancellation tokens at directory granularity.
+**Job scheduler** (`kipple-engine::jobs`). Scan, enrich, hash and thumbnail work runs as **jobs**:
+- **Priorities:** interactive > scan > enrich > hash > thumbnails, then first come, first served. Priority only picks the next job to start; a running job is never interrupted, so low-priority work comes in small batches.
+- **Concurrency limits** depend on the kind of volume: at most 4 jobs at once on an SSD, 2 on an unknown kind, 1 on an HDD, a removable drive or a network share, and a global cap across volumes. Interactive jobs skip the limits (the user is waiting), so they must be short. Until SSD/HDD detection lands, most local volumes report "unknown". The limit counts jobs: a parallel walker sizes its own thread pool to the volume too.
+- **Pause/resume/cancel** are cooperative, at directory (or batch) granularity: a job calls `checkpoint()` between units of work, outside any index transaction. A paused job gives its slot back, so other jobs run meanwhile, and queues for a slot again when resumed.
+- **Events:** state changes (queued, running, paused, finished with done / cancelled / a failure code) are delivered in order; progress is coalesced into one batch event per 100 ms at most (≤ 10/s). Every job ends with a `Finished` event, also when the scheduler shuts down.
 **Watching (v1):** debounced `notify`, plus a rescan on overflow, plus a periodic fallback. inotify needs **one watch per directory**, so S6 measures the directory count. To avoid full rescans of very large trees after a restart, persist the **FSEvents event ID** (macOS) and the **NTFS USN journal position** (Windows) and replay only the changes since then. S4 measured a full 1M-file rescan at 38 s on a modest Mac VM. Linux keeps periodic rescans, which took 2.6 s for 1M files in S4.
 
 ### 7.2 Plan → Review → Apply (the only way files change)

@@ -197,12 +197,18 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - The sync-root flag is set.
     - Commands: `locations.*`.
   - **Notes:** Locations are stored in `locations.json` (ADR-0003 amendment); the index mirrors them. The "no Trash" badge waits for K-4.6 (until then macOS and Windows report "unknown" for every volume). Onboarding (which default folders start on) and the `location.online_changed` event come with K-2.6 / onboarding. From the K-2.4 review, still open: default folder rows don't show the offline / synced badges yet (iCloud Desktop & Documents and OneDrive Known Folder Move are the common sync cases); a folder picked in the dialog that *is* a default folder is stored as custom; a missing default folder (no Music) could be hidden instead of erroring.
-- [ ] **K-2.5 Job scheduler** · M
+- [x] **K-2.5 Job scheduler** · M
   - **Done when:**
     - The queue has priorities (interactive > scan > enrich > hash > thumbnails).
     - Jobs support cancellation tokens and pause/resume.
     - Progress events are throttled to 10 per second or fewer.
     - Concurrency limits depend on the kind of volume.
+  - **Notes:** `kipple-engine::jobs`, described in ARCH §7.1. Each running job gets its own thread (jobs are blocking code), not a tokio task. Per-volume limits: SSD 4, unknown 2, HDD / removable / network 1.
+  - **From the K-2.5 review, for later tasks:**
+    - Platform: the `Volumes` adapters never report `Ssd` or `Hdd` yet, so most local volumes get the "unknown" limit. Detect it with Linux `/sys/block/*/queue/rotational`, macOS IOKit "Solid State", Windows `IOCTL_STORAGE_QUERY_PROPERTY` (`StorageDeviceSeekPenaltyProperty`).
+    - K-2.6: keep the job ID → Location map behind the same lock the event sink takes (events for a job can arrive before `submit` returns), or add a tag to `JobSpec`. Keep the last scan's counts yourself: a finished job leaves the scheduler. De-duplicate `scan.start` per Location. Size the walker's threads from `volume_limit`. A job that queues follow-up jobs (enrich after scan) holds a `Weak` to the scheduler, never an `Arc`. Report progress per directory, not per file (it takes the scheduler's lock).
+    - The app shell picks `max_jobs` and, on quit, cancels and waits (`wait_idle`) so a scan's open batch can commit. Don't forward every state event to the UI one-to-one: a burst of small enrich jobs makes three each.
+    - Queued jobs are picked by a linear scan; switch to an ordered set if thousands of jobs get queued.
 - [ ] **K-2.6 Walker & diff** · L
   - **Done when:**
     - The parallel `ignore` walker runs with `standard_filters(false)`.
