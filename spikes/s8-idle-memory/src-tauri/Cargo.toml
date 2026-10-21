@@ -19,4 +19,6 @@ kipple-i18n-rs = { path = "../../../crates/kipple-i18n-rs" }
 sys-locale = "=0.3.2"
 
 [profile.release]
-strip = true
+# Symbols kept: measure.sh dumps thread stacks with gdb when a run fails on Linux.
+strip = false
+debug = 1

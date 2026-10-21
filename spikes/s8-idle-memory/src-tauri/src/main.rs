@@ -87,6 +87,7 @@ fn main() {
 
             let (handle, mode) = (app.handle().clone(), mode.clone());
             std::thread::spawn(move || {
+                eprintln!("S8: worker waiting {} ms", delay.as_millis());
                 std::thread::sleep(delay);
                 eprintln!("S8: {mode} requested");
                 // On the main thread: from a worker thread the call waited forever on Linux.

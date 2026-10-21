@@ -80,6 +80,9 @@ for mode in ${MODES:-open hide destroy}; do
     # Only count runs where the hide/destroy really happened (the app logs it).
     valid=1
     [ "$mode" = open ] || grep -q "^S8: $mode -> Ok" "out/$mode-$run.log" || valid=0
+    if [ "$valid" = 0 ] && [ "$OS" = Linux ] && command -v gdb >/dev/null; then
+      sudo -n gdb -p "$pid" -batch -ex 'thread apply all bt 25' > "out/$mode-$run.stacks" 2>&1 || true
+    fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$mode" "$run" "$n" "$rss" "$priv" "$valid" | tee -a "$RAW"
     stop_tree "$pid"; wait "$pid" 2>/dev/null || true
     pid=""
