@@ -29,10 +29,8 @@ pub fn encode(path: &Path) -> Vec<u8> {
 #[cfg(windows)]
 pub fn decode(bytes: &[u8]) -> PathBuf {
     use std::os::windows::ffi::OsStringExt;
-    let units: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|b| u16::from_le_bytes([b[0], b[1]]))
-        .collect();
+    let (pairs, _) = bytes.as_chunks::<2>();
+    let units: Vec<u16> = pairs.iter().map(|pair| u16::from_le_bytes(*pair)).collect();
     std::ffi::OsString::from_wide(&units).into()
 }
 
