@@ -722,6 +722,22 @@ mod tests {
         (tx, work)
     }
 
+    /// `work`, telling the receiver when it starts. A job is `Running` before its thread
+    /// passes the checkpoint ahead of the work: a pause or cancel then stops it right there.
+    fn announced(
+        work: impl FnOnce(&JobContext) -> Result<(), JobError>,
+    ) -> (
+        Receiver<()>,
+        impl FnOnce(&JobContext) -> Result<(), JobError>,
+    ) {
+        let (tx, rx) = mpsc::channel();
+        let work = move |ctx: &JobContext| {
+            tx.send(()).unwrap();
+            work(ctx)
+        };
+        (rx, work)
+    }
+
     /// A job that records its name in `log` and ends.
     fn logs(
         log: &Arc<Mutex<Vec<&'static str>>>,
@@ -894,8 +910,9 @@ mod tests {
     fn a_running_job_stops_at_its_next_checkpoint() {
         let (s, events) = scheduler(1);
         let (gate, work) = gated();
+        let (started, work) = announced(work);
         let id = s.submit(JobSpec::new(Priority::Scan), work);
-        wait_for("it to run", || state_of(&s, id) == Some(JobState::Running));
+        started.recv_timeout(WAIT).unwrap();
 
         assert!(s.cancel(id));
         gate.send(()).unwrap();
@@ -908,8 +925,9 @@ mod tests {
     fn a_paused_job_gives_its_slot_back_until_resumed() {
         let (s, events) = scheduler(1);
         let (gate, work) = gated();
+        let (started, work) = announced(work);
         let a = s.submit(JobSpec::new(Priority::Scan), work);
-        wait_for("a to run", || state_of(&s, a) == Some(JobState::Running));
+        started.recv_timeout(WAIT).unwrap();
         let log = Arc::default();
         let b = s.submit(JobSpec::new(Priority::Enrich), logs(&log, "b"));
 
@@ -1139,7 +1157,8 @@ mod tests {
         let before = events.lock().unwrap().len();
 
         assert!(s.cancel(id));
-        assert!(s.resume(id));
+        // False if the woken job already stopped and is gone: either way it stays cancelled.
+        s.resume(id);
         assert!(s.wait_idle(WAIT));
         wait_for("the end", || finished(&events, id).is_some());
         assert_eq!(
