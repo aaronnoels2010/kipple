@@ -8,4 +8,5 @@ pub mod facet;
 pub mod identity;
 pub mod item;
 pub mod location;
+pub mod paths;
 pub mod time;

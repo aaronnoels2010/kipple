@@ -2,8 +2,7 @@
 //! Locations: the root folders the user lets Kipple manage, and the facts about their volume
 //! (CONTEXT.md).
 
-use std::ffi::OsStr;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use crate::identity::VolumeId;
 use crate::time::Timestamp;
@@ -157,34 +156,10 @@ pub struct Location {
 }
 
 impl Location {
-    /// Whether `path` is this Location's root or lies inside it, compared component by component
-    /// and ignoring case on case-insensitive volumes.
-    ///
-    /// Purely lexical, and strict about it: a path with `..` anywhere is never inside, and an
-    /// empty or relative root contains nothing. Callers resolve symlinks first and pass Unicode
-    /// in NFC (macOS hands out NFD names), because that isn't normalised here.
+    /// Whether `path` is this Location's root or lies inside it: see [`crate::paths::is_within`]
+    /// for the (strict, lexical) rules.
     pub fn contains(&self, path: &Path) -> bool {
-        if !self.path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
-            return false;
-        }
-        let same = |a: &OsStr, b: &OsStr| {
-            if a == b {
-                return true;
-            }
-            // Names that aren't valid UTF-8 are compared as bytes only, never "lossily".
-            match (a.to_str(), b.to_str()) {
-                (Some(a), Some(b)) => {
-                    !self.caps.case_sensitive && a.to_lowercase() == b.to_lowercase()
-                }
-                _ => false,
-            }
-        };
-        let mut inner = path.components();
-        self.path.components().all(|root| {
-            inner
-                .next()
-                .is_some_and(|c| same(root.as_os_str(), c.as_os_str()))
-        })
+        crate::paths::is_within(&self.path, path, self.caps.case_sensitive)
     }
 }
 
