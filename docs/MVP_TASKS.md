@@ -176,12 +176,18 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - A query benchmark shows search < 100 ms at 1M rows.
   - **Result (M-series Mac, release):** 1M Items inserted in 62 s (≈ 16k/s, batches of 10k through a staging table); name search ≤ 80 ms for the first or next page of 100, 9 ms for rare words, < 1 ms for 1–2 letters. Common words ("invoice": ~10 % of names) are the slow case, because all matches are sorted by name.
   - **Notes from K-2.1:** store `FileId` (u128) as a 16-byte BLOB (it doesn't fit an SQLite INTEGER); give `ItemKind`, `LocationKind`, `TrashSupport` and `StorageKind` stable codes like `TypeCategory::code()`; add a column for `VolumeCaps.storage`.
-- [ ] **K-2.3 Platform ports framework** · L
+- [x] **K-2.3 Platform ports framework** · L
   - **Done when:**
     - The traits from ARCH §8 exist with `Unsupported` handling.
     - There are **in-memory fakes**.
     - A **contract test harness** runs per OS in CI.
     - First adapters are done on all three OSes: `Volume` (ID, kind, capabilities), `ProtectedPaths` + `Bundles` (including `.git`), `Placeholder` and `SyncRoots`.
+  - **Scope decision:** this task built the ports it has adapters for (`Volumes`, `Placeholders`, `SyncRoots`, plus `ProtectedPaths`/bundles). Each other §8 port (Trash, LastUsed, DownloadOrigin, InstalledApps, Screenshots, LockInfo, Permissions, Thumbnails) is added with the task that implements it, so its signature isn't guessed early.
+  - **Notes from the K-2.3 review, for later tasks:**
+    - K-4.6 (Trash): decide `TrashSupport::Yes` per volume (macOS `NSTrashDirectory`; Windows Recycle Bin switched off per drive / `NukeOnDelete`, max size; Linux `$topdir/.Trash-$uid`). Until then only Linux's home Trash says yes.
+    - K-2.6 (walker): turn off cloud downloads for the whole process (macOS `setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, OFF)`, Windows `RtlSetProcessPlaceholderCompatibilityMode(PHCM_EXPOSE_PLACEHOLDERS)`), take placeholder attributes from the directory listing, check the Google Drive virtual drive (G:), cache `/proc/self/mountinfo` and the by-uuid lookup per scan, and confirm macOS bundles by `Contents/Info.plist` instead of the name only.
+    - K-2.4/K-2.6: btrfs subvolumes share one filesystem UUID but can't rename across each other (`EXDEV`).
+    - Windows sync roots: filter `UserSyncRoots` by the current user's SID instead of "folder exists". Linux network detection misses bare `fuse`, `virtiofs`, `vboxsf`, `afs` (treated as local).
 - [ ] **K-2.4 Location management** · M
   - **Done when:**
     - The default user folders can be toggled.

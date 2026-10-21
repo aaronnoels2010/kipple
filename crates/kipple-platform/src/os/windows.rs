@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Windows: the volume GUID path (`\\?\Volume{…}\`) as the ID, `GetVolumeInformationW` for the
-//! filesystem, `GetDriveTypeW` + `SHQueryRecycleBinW` for the Recycle Bin (S9).
+//! filesystem, `GetDriveTypeW` for the kind of drive (network and removable: no Recycle Bin, S9).
 
 use std::ffi::OsString;
 use std::io;
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
-use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+use windows_sys::Win32::Foundation::{ERROR_NO_MORE_ITEMS, ERROR_SUCCESS};
 use windows_sys::Win32::Storage::FileSystem::{
     GetDriveTypeW, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW, GetVolumePathNameW,
 };
@@ -17,10 +17,7 @@ use windows_sys::Win32::System::Registry::{
     HKEY, HKEY_LOCAL_MACHINE, KEY_READ, REG_SZ, RegCloseKey, RegEnumKeyExW, RegEnumValueW,
     RegOpenKeyExW,
 };
-use windows_sys::Win32::System::WindowsProgramming::{
-    DRIVE_CDROM, DRIVE_FIXED, DRIVE_REMOTE, DRIVE_REMOVABLE,
-};
-use windows_sys::Win32::UI::Shell::{SHQUERYRBINFO, SHQueryRecycleBinW};
+use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_REMOTE, DRIVE_REMOVABLE};
 
 use crate::{Placeholders, PortResult, SyncRoot, SyncRoots, VolumeInfo, Volumes};
 
@@ -46,9 +43,35 @@ fn from_wide(buf: &[u16]) -> OsString {
     OsString::from_wide(&buf[..end])
 }
 
+/// `path` with links (symlinks, junctions, mapped folders) resolved and without the `\\?\`
+/// prefix `canonicalize` adds: `C:\data` linked to `\\nas\share` must be judged as the share.
+fn resolve(path: &Path) -> io::Result<PathBuf> {
+    use std::path::{Component, Prefix};
+    let canonical = std::fs::canonicalize(path)?;
+    let mut components = canonical.components();
+    let plain = match components.next() {
+        Some(Component::Prefix(prefix)) => match prefix.kind() {
+            Prefix::VerbatimDisk(drive) => format!("{}:\\", char::from(drive)),
+            Prefix::VerbatimUNC(server, share) => {
+                format!(
+                    r"\\{}\{}\",
+                    server.to_string_lossy(),
+                    share.to_string_lossy()
+                )
+            }
+            _ => return Ok(canonical),
+        },
+        _ => return Ok(canonical),
+    };
+    Ok(components.fold(PathBuf::from(plain), |acc, c| match c {
+        Component::RootDir => acc,
+        other => acc.join(other.as_os_str()),
+    }))
+}
+
 impl Volumes for NativeVolumes {
     fn volume_of(&self, path: &Path) -> PortResult<VolumeInfo> {
-        let path_w = wide(path);
+        let path_w = wide(&resolve(path)?);
         let mut mount = [0u16; MAX];
         // SAFETY: `path_w` is NUL-terminated; `mount` has room for MAX code units.
         if unsafe { GetVolumePathNameW(path_w.as_ptr(), mount.as_mut_ptr(), MAX as u32) } == 0 {
@@ -96,22 +119,11 @@ impl Volumes for NativeVolumes {
         // SAFETY: `mount_w` is NUL-terminated.
         let drive = unsafe { GetDriveTypeW(mount_w.as_ptr()) };
         let read_only = flags & FILE_READ_ONLY_VOLUME != 0;
+        // A fixed drive usually has a Recycle Bin, but it can be switched off for the drive or be
+        // too small for a file, and then deleting is permanent: the Trash port (K-4.6) checks
+        // those settings. Until then: unknown, which counts as no.
         let trash = match drive {
-            DRIVE_REMOTE | DRIVE_REMOVABLE | DRIVE_CDROM => TrashSupport::No,
-            DRIVE_FIXED if !read_only => {
-                let mut info = SHQUERYRBINFO {
-                    cbSize: size_of::<SHQUERYRBINFO>() as u32,
-                    i64Size: 0,
-                    i64NumItems: 0,
-                };
-                // SAFETY: `mount_w` is NUL-terminated and `info.cbSize` is set as required.
-                let hr = unsafe { SHQueryRecycleBinW(mount_w.as_ptr(), &mut info) };
-                if hr == 0 {
-                    TrashSupport::Yes
-                } else {
-                    TrashSupport::Unknown
-                }
-            }
+            DRIVE_FIXED if !read_only => TrashSupport::Unknown,
             _ => TrashSupport::No,
         };
         let network = drive == DRIVE_REMOTE;
@@ -197,8 +209,12 @@ impl Key {
                     std::ptr::null_mut(),
                 )
             };
-            if status != ERROR_SUCCESS {
+            // Too long or unreadable: skip that one, keep going until there are no more.
+            if status == ERROR_NO_MORE_ITEMS {
                 break;
+            }
+            if status != ERROR_SUCCESS {
+                continue;
             }
             names.push(String::from_utf16_lossy(&buf[..len as usize]));
         }
@@ -227,8 +243,12 @@ impl Key {
                     &mut data_len,
                 )
             };
-            if status != ERROR_SUCCESS {
+            // Too long or unreadable: skip that one, keep going until there are no more.
+            if status == ERROR_NO_MORE_ITEMS {
                 break;
+            }
+            if status != ERROR_SUCCESS {
+                continue;
             }
             if kind == REG_SZ {
                 values.push(from_wide(&data[..(data_len as usize / 2).min(data.len())]));

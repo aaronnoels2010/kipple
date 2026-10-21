@@ -62,7 +62,8 @@ fn volume_uuid(mount: &CStr) -> Option<[u8; 16]> {
             0,
         )
     };
-    (status == 0 && reply.uuid != [0; 16]).then_some(reply.uuid)
+    // `length` covers itself plus the UUID when the filesystem returned one.
+    (status == 0 && reply.length >= 20 && reply.uuid != [0; 16]).then_some(reply.uuid)
 }
 
 fn uuid_string(b: [u8; 16]) -> String {
@@ -108,7 +109,7 @@ impl Volumes for NativeVolumes {
             .map(uuid_string)
             // No UUID (some FAT and network volumes): where it is mounted, which holds while it
             // stays mounted there.
-            .unwrap_or_else(|| format!("mount:{}", mount_point.display()));
+            .unwrap_or_else(|| format!("mount:{}:{fs_type}", mount_point.display()));
         // SAFETY: `c` is a NUL-terminated path; pathconf only reads it.
         let case_sensitive = unsafe { libc::pathconf(c.as_ptr(), libc::_PC_CASE_SENSITIVE) } == 1;
         let network = !local || super::is_network_fs(&fs_type);

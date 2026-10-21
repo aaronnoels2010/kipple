@@ -16,7 +16,7 @@ impl Volumes for FakeVolumes {
     fn volume_of(&self, path: &Path) -> PortResult<VolumeInfo> {
         self.volumes
             .iter()
-            .filter(|v| kipple_core::paths::is_within(&v.mount_point, path, true))
+            .filter(|v| kipple_core::paths::is_within(&v.mount_point, path, v.caps.case_sensitive))
             .max_by_key(|v| v.mount_point.components().count())
             .cloned()
             .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound).into())

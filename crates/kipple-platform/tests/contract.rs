@@ -79,13 +79,14 @@ fn native_volumes_meet_the_contract() {
     // The user's own (local, writable) home volume: a known Trash on Windows and Linux; macOS
     // stays "unknown" until the Trash port checks it (K-4.6).
     assert!(!home_volume.read_only && home_volume.caps.storage != StorageKind::Network);
-    if !cfg!(target_os = "macos") {
-        assert_eq!(
-            home_volume.caps.trash,
-            TrashSupport::Yes,
-            "home has a Trash / Recycle Bin"
-        );
-    }
+    // Linux knows the home Trash; macOS and Windows stay "unknown" until the Trash port checks
+    // the volume (K-4.6). Never "no" for the home volume.
+    let expected = if cfg!(target_os = "linux") {
+        TrashSupport::Yes
+    } else {
+        TrashSupport::Unknown
+    };
+    assert_eq!(home_volume.caps.trash, expected);
     if cfg!(any(target_os = "macos", windows)) {
         assert!(
             !home_volume.caps.case_sensitive,
