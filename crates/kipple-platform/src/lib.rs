@@ -6,6 +6,7 @@
 // `// SAFETY:` comment on every unsafe block (undocumented_unsafe_blocks).
 
 pub mod fake;
+mod os;
 mod protected;
 
 use std::path::{Path, PathBuf};
@@ -13,6 +14,7 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::VolumeCaps;
 
+pub use os::NativeVolumes;
 pub use protected::ProtectedPaths;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -50,6 +52,8 @@ pub type PortResult<T> = Result<T, PortError>;
 pub struct VolumeInfo {
     /// Stable across reboots and remounts (a filesystem UUID or volume GUID where available).
     pub id: VolumeId,
+    /// Where the volume is mounted. On macOS this needn't be a prefix of the paths on it:
+    /// `/Users` and `/private/var` are firmlinks into the Data volume at `/System/Volumes/Data`.
     pub mount_point: PathBuf,
     /// The filesystem type as the OS names it (`apfs`, `NTFS`, `ext4`…), for logs and rules.
     pub fs_type: String,
