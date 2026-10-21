@@ -151,7 +151,7 @@ mod tests {
     /// at `usb` (volume "usb") and a OneDrive folder.
     fn world() -> World {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let root = kipple_platform::canonical(dir.path()).unwrap();
         #[allow(clippy::disallowed_methods)] // test fixture
         {
             for folder in [

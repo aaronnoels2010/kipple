@@ -45,7 +45,8 @@ fn world() -> World {
 
 fn world_with(caps: VolumeCaps) -> World {
     let dir = tempfile::tempdir().unwrap();
-    let root = fs::canonicalize(dir.path()).unwrap();
+    // Kipple's canonical form: no `\\?\` prefix on Windows, unlike `fs::canonicalize`.
+    let root = kipple_platform::canonical(dir.path()).unwrap();
     let location = Location {
         id: LocationId(1),
         path: root.clone(),
