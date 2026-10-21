@@ -20,6 +20,6 @@ The first draft had a hidden webview format the tray and notification text. The 
 
 ## Consequences
 - One translation source and one message format, whether the text is rendered by TypeScript or Rust. CI checks that both are in sync.
-- The idle tray process holds no webview (to be confirmed in spike S8).
+- The idle tray process holds no webview. ✅ **Confirmed by spike S8** ([report](../../spikes/s8-idle-memory/README.md)): hiding the window saves nothing, while destroying it brings the tray-only process to 27 MiB on Windows, 124 MiB on macOS and 213 MiB RSS / 145 MiB PSS on Linux (CI runners), under the < 200 MB target. Re-opening takes ≈ 0.1 s. The tray menu renders from `kipple-i18n-rs` with no webview. Do window operations on the main thread (on Linux, calls from other threads can wait forever).
 - Codes are a stable, typed API between backend and frontend.
 - Logs use codes as well, so exported diagnostics are language-independent.

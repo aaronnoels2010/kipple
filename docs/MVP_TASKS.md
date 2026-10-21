@@ -157,7 +157,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
   - **Depends on:** K-0.3.
 - [x] **K-1.10 Install guide** · S
   - **Done when:** `docs/INSTALL.md` (EN and NL) covers first launch on each OS (Open Anyway on macOS, More info → Run anyway on Windows, chmod for the AppImage) and how to verify the checksums.
-- [ ] **K-1.11 Spike S8: idle memory with the webview destroyed** · S
+- [x] **K-1.11 Spike S8: idle memory with the webview destroyed** · S
   - **Done when:** tray-only memory has been measured with the webview destroyed vs hidden on all three OSes, ADR-0004 is confirmed or adjusted, and the tray menu runs from the Rust catalog.
 
 - [x] **K-1.12 Portable mode** · S

@@ -546,7 +546,7 @@ All results are **codes + parameters** ([ADR-0004](adr/0004-i18n-codes-not-text.
 | S5 | **WebKitGTK media codecs** | H.264/HEVC playback on Ubuntu and Fedora | "Open in default app" |
 | S6 | **inotify limits** (one watch per directory) | Count directories on large real trees | Periodic rescan |
 | S7 | **Shell integration while unsigned** | v1 spike | Services menu (macOS), classic menu (Windows) |
-| S8 | **Idle memory** with the tray active | Measure the tray-only process with the webview destroyed vs hidden, on all 3 OSes | Always destroy the webview in tray mode ([ADR-0004](adr/0004-i18n-codes-not-text.md)) |
+| S8 | ✅ **Done.** **Idle memory** with the tray active | Result: hiding the window saves nothing; destroying the webview leaves 27 MiB (Windows), 124 MiB (macOS), 213 MiB RSS / 145 MiB PSS (Linux) on CI runners, under the < 200 MB target. Re-open ≈ 0.1 s ([report](../spikes/s8-idle-memory/README.md)). Also found: on Linux without an XDG desktop portal, window creation blocks ~25 s | Always destroy the webview in tray mode ([ADR-0004](adr/0004-i18n-codes-not-text.md)) |
 | S9 | ✅ **Done.** **Trash support detection** per volume (USB, SMB, NFS, exFAT) | Result: 0 unsafe predictions on macOS, Linux and Windows. Windows SMB confirmed as a **silent permanent delete** ([report](../spikes/s9-trash-support/README.md)) | Treat unknown as "no trash" (blocking issue) |
 
 ---
