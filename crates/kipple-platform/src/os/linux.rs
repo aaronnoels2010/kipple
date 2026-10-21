@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 
-use crate::{Placeholders, PortError, PortResult, SyncRoot, SyncRoots, VolumeInfo, Volumes};
+use crate::{
+    DownloadOrigins, Placeholders, PortError, PortResult, Screenshots, SyncRoot, SyncRoots,
+    VolumeInfo, Volumes,
+};
 
 #[derive(Debug, Clone)]
 pub struct NativeVolumes {
@@ -200,9 +203,99 @@ impl SyncRoots for NativeSyncRoots {
     }
 }
 
+/// `user.xdg.origin.url` (freedesktop "Common Extended Attributes"): written by Chromium-based
+/// browsers and by `curl --xattr` and `wget --xattr`; Firefox writes nothing.
+#[derive(Debug, Default, Clone)]
+pub struct NativeDownloadOrigins;
+
+impl DownloadOrigins for NativeDownloadOrigins {
+    fn origin_of(&self, path: &Path) -> PortResult<Option<String>> {
+        let Some(mut value) = super::unix::xattr(path, c"user.xdg.origin.url")? else {
+            return Ok(None);
+        };
+        if value.last() == Some(&0) {
+            value.pop();
+        }
+        Ok(String::from_utf8(value).ok().filter(|url| !url.is_empty()))
+    }
+}
+
+/// Screenshots by where GNOME and Spectacle save them (a Screenshots folder in Pictures, in
+/// any of the languages in `screenshot_names`) or by the names they give them, wherever the
+/// file is now. Both are worked out from the path alone.
+#[derive(Debug, Clone)]
+pub struct NativeScreenshots {
+    folders: Vec<PathBuf>,
+}
+
+impl NativeScreenshots {
+    /// Reads `user-dirs.dirs` once, for a Pictures folder with another name ("Afbeeldingen").
+    pub fn new(home: PathBuf) -> Self {
+        let config = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_absolute())
+            .unwrap_or_else(|| home.join(".config"));
+        Self::with_config(&home, &config)
+    }
+
+    fn with_config(home: &Path, config: &Path) -> Self {
+        // Items have canonical paths: folders reached through a link must match them.
+        let home = std::fs::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+        let pictures = std::fs::read_to_string(config.join("user-dirs.dirs"))
+            .ok()
+            .and_then(|text| super::screenshot_names::pictures_dir(&text, &home));
+        let folders = super::screenshot_names::screenshot_folders(&home, pictures.as_deref())
+            .into_iter()
+            .map(|folder| std::fs::canonicalize(&folder).unwrap_or(folder))
+            .collect();
+        Self { folders }
+    }
+}
+
+impl Screenshots for NativeScreenshots {
+    fn is_screenshot(&self, path: &Path) -> PortResult<bool> {
+        let in_folder = self
+            .folders
+            .iter()
+            .any(|folder| kipple_core::paths::is_within(folder, path, true));
+        Ok(in_folder
+            || path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(super::screenshot_names::is_screenshot_name))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screenshots_folders_follow_the_localised_pictures_folder() {
+        let home = tempfile::tempdir().unwrap();
+        let home = std::fs::canonicalize(home.path()).unwrap();
+        let config = home.join(".config");
+        #[allow(clippy::disallowed_methods)] // test fixture
+        {
+            std::fs::create_dir_all(&config).unwrap();
+            std::fs::write(
+                config.join("user-dirs.dirs"),
+                "XDG_PICTURES_DIR=\"$HOME/Afbeeldingen\"\n",
+            )
+            .unwrap();
+        }
+        let screenshots = NativeScreenshots::with_config(&home, &config);
+        let check = |path: &str| screenshots.is_screenshot(&home.join(path)).unwrap();
+        assert!(check("Afbeeldingen/Schermafdrukken/holiday.png"));
+        assert!(check("Afbeeldingen/Screenshots/holiday.png"));
+        assert!(check("Pictures/Screenshots/holiday.png"));
+        assert!(check("Downloads/Schermafdruk van 2026-10-21 10-20-30.png"));
+        assert!(!check("Afbeeldingen/holiday.png"));
+        assert!(
+            !check("Afbeeldingen/schermafdrukken/holiday.png"),
+            "Linux names are case-sensitive"
+        );
+    }
 
     #[test]
     fn parses_mountinfo_lines() {

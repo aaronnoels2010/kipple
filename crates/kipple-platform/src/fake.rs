@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! In-memory fakes of the ports, for engine and app tests on any machine (ADR-0005).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::{Placeholders, PortError, PortResult, SyncRoot, SyncRoots, VolumeInfo, Volumes};
+use crate::{
+    DownloadOrigins, Placeholders, PortError, PortResult, Screenshots, SyncRoot, SyncRoots,
+    VolumeInfo, Volumes,
+};
 
 /// Volumes by mount point: a path belongs to the longest mount point it lies within.
 #[derive(Debug, Default, Clone)]
@@ -60,5 +63,31 @@ pub struct FakeSyncRoots {
 impl SyncRoots for FakeSyncRoots {
     fn sync_roots(&self) -> PortResult<Vec<SyncRoot>> {
         self.roots.clone().ok_or(PortError::Unsupported)
+    }
+}
+
+/// Download URLs by path; `None` makes the port `Unsupported`.
+#[derive(Debug, Default, Clone)]
+pub struct FakeDownloadOrigins {
+    pub origins: Option<BTreeMap<PathBuf, String>>,
+}
+
+impl DownloadOrigins for FakeDownloadOrigins {
+    fn origin_of(&self, path: &Path) -> PortResult<Option<String>> {
+        let known = self.origins.as_ref().ok_or(PortError::Unsupported)?;
+        Ok(known.get(path).cloned())
+    }
+}
+
+/// The paths that are screenshots; `None` makes the port `Unsupported`.
+#[derive(Debug, Default, Clone)]
+pub struct FakeScreenshots {
+    pub screenshots: Option<BTreeSet<PathBuf>>,
+}
+
+impl Screenshots for FakeScreenshots {
+    fn is_screenshot(&self, path: &Path) -> PortResult<bool> {
+        let known = self.screenshots.as_ref().ok_or(PortError::Unsupported)?;
+        Ok(known.contains(path))
     }
 }

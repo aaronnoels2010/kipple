@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use kipple_core::identity::VolumeId;
 use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 
-use crate::{Placeholders, PortResult, SyncProvider, SyncRoot, SyncRoots, VolumeInfo, Volumes};
+use crate::{
+    DownloadOrigins, Placeholders, PortResult, Screenshots, SyncProvider, SyncRoot, SyncRoots,
+    VolumeInfo, Volumes,
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct NativeVolumes;
@@ -224,5 +227,53 @@ impl SyncRoots for NativeSyncRoots {
             }
         }
         Ok(roots)
+    }
+}
+
+/// The `kMDItemWhereFroms` attribute browsers, Mail and AirDrop write: a binary plist with the
+/// download URL first and, usually, the page that linked to it second.
+#[derive(Debug, Default, Clone)]
+pub struct NativeDownloadOrigins;
+
+impl DownloadOrigins for NativeDownloadOrigins {
+    fn origin_of(&self, path: &Path) -> PortResult<Option<String>> {
+        let Some(value) = super::unix::xattr(path, c"com.apple.metadata:kMDItemWhereFroms")? else {
+            return Ok(None);
+        };
+        // An unreadable record is no record.
+        let url = match plist::Value::from_reader(io::Cursor::new(value)) {
+            Ok(plist::Value::Array(urls)) => {
+                urls.into_iter().next().and_then(plist::Value::into_string)
+            }
+            Ok(plist::Value::String(url)) => Some(url),
+            _ => None,
+        };
+        Ok(url.filter(|url| !url.is_empty()))
+    }
+}
+
+/// `kMDItemIsScreenCapture`, which the Screenshot app and `screencapture` write on each capture
+/// as an attribute (a binary plist `true`). Reading the attribute instead of asking Spotlight
+/// works where Spotlight is off and costs one call per file.
+#[derive(Debug, Default, Clone)]
+pub struct NativeScreenshots;
+
+impl NativeScreenshots {
+    /// `home` is only needed on Linux (to find the Pictures folder); same signature everywhere.
+    pub fn new(_home: PathBuf) -> Self {
+        Self
+    }
+}
+
+impl Screenshots for NativeScreenshots {
+    fn is_screenshot(&self, path: &Path) -> PortResult<bool> {
+        let Some(value) = super::unix::xattr(path, c"com.apple.metadata:kMDItemIsScreenCapture")?
+        else {
+            return Ok(false);
+        };
+        Ok(matches!(
+            plist::Value::from_reader(io::Cursor::new(value)),
+            Ok(plist::Value::Boolean(true))
+        ))
     }
 }

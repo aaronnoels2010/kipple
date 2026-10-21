@@ -12,13 +12,14 @@ use kipple_core::location::{StorageKind, TrashSupport, VolumeCaps};
 use kipple_core::time::Timestamp;
 use windows_sys::Wdk::Storage::FileSystem::RtlSetProcessPlaceholderCompatibilityMode;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_INVALID_FUNCTION, ERROR_INVALID_LEVEL, ERROR_INVALID_PARAMETER,
-    ERROR_NO_MORE_FILES, ERROR_NO_MORE_ITEMS, ERROR_NOT_SUPPORTED, ERROR_SUCCESS, HANDLE,
-    INVALID_HANDLE_VALUE,
+    CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_INVALID_FUNCTION, ERROR_INVALID_LEVEL,
+    ERROR_INVALID_NAME, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, ERROR_NO_MORE_ITEMS,
+    ERROR_NOT_SUPPORTED, ERROR_SUCCESS, HANDLE, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_REPARSE_POINT,
-    FILE_FLAG_BACKUP_SEMANTICS, FILE_ID_BOTH_DIR_INFO, FILE_LIST_DIRECTORY, FILE_SHARE_DELETE,
+    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_NO_RECALL, FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_GENERIC_READ, FILE_ID_BOTH_DIR_INFO, FILE_LIST_DIRECTORY, FILE_SHARE_DELETE,
     FILE_SHARE_READ, FILE_SHARE_WRITE, FileIdBothDirectoryInfo, GetDriveTypeW,
     GetFileInformationByHandleEx, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW,
     GetVolumePathNameW, OPEN_EXISTING,
@@ -30,8 +31,8 @@ use windows_sys::Win32::System::Registry::{
 use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_REMOTE, DRIVE_REMOVABLE};
 
 use crate::{
-    DirEntry, Directories, EntryKind, Placeholders, PortResult, SyncRoot, SyncRoots, VolumeInfo,
-    Volumes,
+    DirEntry, Directories, DownloadOrigins, EntryKind, Placeholders, PortResult, Screenshots,
+    SyncRoot, SyncRoots, VolumeInfo, Volumes,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -541,6 +542,113 @@ fn list_plain(dir: &Path) -> io::Result<Vec<DirEntry>> {
         });
     }
     Ok(entries)
+}
+
+/// The `Zone.Identifier` stream browsers and other downloaders put next to a file ("Mark of
+/// the Web"), read without recalling a cloud file or following a link.
+#[derive(Debug, Default, Clone)]
+pub struct NativeDownloadOrigins;
+
+impl DownloadOrigins for NativeDownloadOrigins {
+    fn origin_of(&self, path: &Path) -> PortResult<Option<String>> {
+        use std::io::Read;
+        use std::os::windows::io::FromRawHandle;
+        let mut stream = path.as_os_str().to_owned();
+        stream.push(":Zone.Identifier");
+        let name = verbatim(Path::new(&stream));
+        // SAFETY: `name` is NUL-terminated and outlives the call; read access only. NO_RECALL
+        // keeps a cloud file in the cloud; OPEN_REPARSE_POINT opens a link, not its target.
+        let handle = unsafe {
+            CreateFileW(
+                name.as_ptr(),
+                FILE_GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_FLAG_OPEN_NO_RECALL | FILE_FLAG_OPEN_REPARSE_POINT,
+                std::ptr::null_mut(),
+            )
+        };
+        if handle == INVALID_HANDLE_VALUE {
+            let error = io::Error::last_os_error();
+            return match error.raw_os_error().map(|code| code as u32) {
+                // No stream, or a filesystem without streams (FAT, exFAT, some shares): no
+                // record, as long as the file itself is there.
+                Some(
+                    ERROR_FILE_NOT_FOUND
+                    | ERROR_INVALID_NAME
+                    | ERROR_INVALID_PARAMETER
+                    | ERROR_NOT_SUPPORTED,
+                ) => {
+                    std::fs::symlink_metadata(path)?;
+                    Ok(None)
+                }
+                _ => Err(error.into()),
+            };
+        }
+        // SAFETY: a handle just opened; the File owns it from here and closes it.
+        let file = unsafe { std::fs::File::from_raw_handle(handle) };
+        // A few lines of text; anything past 64 KiB isn't a Zone.Identifier.
+        let mut text = Vec::new();
+        file.take(64 * 1024).read_to_end(&mut text)?;
+        Ok(super::zone_host_url(&text))
+    }
+}
+
+/// Screenshots are what's in the Screenshots known folder (`Pictures\Screenshots` or its
+/// localised, moved or OneDrive-backed equivalent), where Win+PrtScn and Snipping Tool save.
+#[derive(Debug, Clone)]
+pub struct NativeScreenshots {
+    folder: Option<PathBuf>,
+}
+
+impl NativeScreenshots {
+    /// Asks the shell for the folder once. `home` is only needed on Linux; same signature
+    /// everywhere.
+    pub fn new(_home: PathBuf) -> Self {
+        use windows_sys::Win32::UI::Shell::FOLDERID_Screenshots;
+        Self {
+            folder: known_folder(&FOLDERID_Screenshots),
+        }
+    }
+}
+
+/// Where a known folder is, without creating it when it doesn't exist (yet).
+fn known_folder(id: &windows_sys::core::GUID) -> Option<PathBuf> {
+    use windows_sys::Win32::System::Com::CoTaskMemFree;
+    use windows_sys::Win32::UI::Shell::{KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath};
+    let mut raw: windows_sys::core::PWSTR = std::ptr::null_mut();
+    // SAFETY: `id` is a valid GUID and `raw` a valid out-pointer; no token (the current user).
+    let status = unsafe {
+        SHGetKnownFolderPath(
+            id,
+            KF_FLAG_DONT_VERIFY as u32,
+            std::ptr::null_mut(),
+            &mut raw,
+        )
+    };
+    let path = (status >= 0 && !raw.is_null()).then(|| {
+        // SAFETY: on success `raw` is a NUL-terminated string the shell allocated.
+        let wide = unsafe {
+            let len = (0..).take_while(|&i| *raw.add(i) != 0).count();
+            std::slice::from_raw_parts(raw, len)
+        };
+        PathBuf::from(OsString::from_wide(wide))
+    });
+    // SAFETY: the shell's allocation (null on some failures, which is allowed), freed once.
+    unsafe { CoTaskMemFree(raw.cast()) };
+    // The form Items have, where the folder exists.
+    path.map(|path| resolve(&path).unwrap_or(path))
+}
+
+impl Screenshots for NativeScreenshots {
+    fn is_screenshot(&self, path: &Path) -> PortResult<bool> {
+        // The path alone: nothing about the file is read.
+        Ok(self
+            .folder
+            .as_ref()
+            .is_some_and(|folder| kipple_core::paths::is_within(folder, path, false)))
+    }
 }
 
 /// Windows has no switch that stops reads from downloading: this only makes cloud files show

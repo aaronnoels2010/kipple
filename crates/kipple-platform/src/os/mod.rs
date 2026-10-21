@@ -11,14 +11,24 @@ mod windows;
 #[cfg(unix)]
 mod unix;
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+mod screenshot_names;
+
 #[cfg(target_os = "linux")]
-pub use linux::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
+pub use linux::{
+    NativeDownloadOrigins, NativePlaceholders, NativeScreenshots, NativeSyncRoots, NativeVolumes,
+};
 #[cfg(target_os = "macos")]
-pub use macos::{NativePlaceholders, NativeSyncRoots, NativeVolumes};
+pub use macos::{
+    NativeDownloadOrigins, NativePlaceholders, NativeScreenshots, NativeSyncRoots, NativeVolumes,
+};
 #[cfg(unix)]
 pub use unix::NativeDirectories;
 #[cfg(windows)]
-pub use windows::{NativeDirectories, NativePlaceholders, NativeSyncRoots, NativeVolumes};
+pub use windows::{
+    NativeDirectories, NativeDownloadOrigins, NativePlaceholders, NativeScreenshots,
+    NativeSyncRoots, NativeVolumes,
+};
 
 /// The most memory this process has had resident at once, in bytes: for benchmarks.
 pub fn peak_memory() -> Option<u64> {
@@ -94,6 +104,39 @@ pub(crate) fn provider_of_sync_root_key(key: &str) -> SyncProvider {
     }
 }
 
+/// The download URL in a Windows `Zone.Identifier` stream: `HostUrl` in `[ZoneTransfer]`.
+/// `ReferrerUrl` (the page that linked to the file) is no stand-in, so every OS answers with
+/// the file's own URL; browsers write `about:internet` when they keep the URL to themselves.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn zone_host_url(stream: &[u8]) -> Option<String> {
+    // Usually ANSI or UTF-8; some tools write UTF-16 with a byte order mark.
+    let text = match stream {
+        [0xFF, 0xFE, utf16 @ ..] => String::from_utf16_lossy(
+            &utf16
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&pair| u16::from_le_bytes(pair))
+                .collect::<Vec<_>>(),
+        ),
+        [0xEF, 0xBB, 0xBF, utf8 @ ..] | utf8 => String::from_utf8_lossy(utf8).into_owned(),
+    };
+    let mut in_zone_transfer = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_zone_transfer = line.eq_ignore_ascii_case("[ZoneTransfer]");
+        } else if in_zone_transfer
+            && let Some((key, value)) = line.split_once('=')
+            && key.trim().eq_ignore_ascii_case("HostUrl")
+        {
+            let url = value.trim();
+            return (!url.is_empty() && !url.eq_ignore_ascii_case("about:internet"))
+                .then(|| url.to_string());
+        }
+    }
+    None
+}
+
 /// Shared by the adapters: filesystems whose file IDs survive renames and remounts.
 pub(crate) fn has_stable_file_ids(fs_type: &str) -> bool {
     matches!(
@@ -164,6 +207,52 @@ mod tests {
             provider_of_cloud_storage("Box-Box"),
             SyncProvider::Other("Box-Box".into())
         );
+    }
+
+    #[test]
+    fn the_download_url_is_the_host_url_of_the_zone_transfer() {
+        let stream = b"[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.com/downloads\r\nHostUrl=https://example.com/files/report.pdf\r\n";
+        assert_eq!(
+            zone_host_url(stream).as_deref(),
+            Some("https://example.com/files/report.pdf")
+        );
+        let utf16: Vec<u8> = [0xFF, 0xFE]
+            .into_iter()
+            .chain(
+                "[ZoneTransfer]\r\nhosturl = https://example.com/a.zip\r\n"
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes),
+            )
+            .collect();
+        assert_eq!(
+            zone_host_url(&utf16).as_deref(),
+            Some("https://example.com/a.zip"),
+            "UTF-16, any case, spaces around the ="
+        );
+        assert_eq!(
+            zone_host_url(b"\xEF\xBB\xBF[ZoneTransfer]\nHostUrl=https://example.com/b\n")
+                .as_deref(),
+            Some("https://example.com/b")
+        );
+    }
+
+    #[test]
+    fn zone_transfers_without_a_host_url_have_no_origin() {
+        for stream in [
+            &b"[ZoneTransfer]\r\nZoneId=3\r\n"[..],
+            b"[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.com/\r\n",
+            b"[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=about:internet\r\n",
+            b"[ZoneTransfer]\r\nHostUrl=\r\n",
+            b"[Other]\r\nHostUrl=https://example.com/a.zip\r\n",
+            b"",
+        ] {
+            assert_eq!(
+                zone_host_url(stream),
+                None,
+                "{}",
+                String::from_utf8_lossy(stream)
+            );
+        }
     }
 
     #[test]

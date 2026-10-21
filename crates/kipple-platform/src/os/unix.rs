@@ -77,3 +77,62 @@ fn flags(_name: &std::ffi::OsStr, _meta: &Metadata) -> (bool, bool) {
 fn unix_time(secs: i64, nanos: i64) -> Timestamp {
     Timestamp(Timestamp::from_secs(secs).0.saturating_add(nanos))
 }
+
+/// The extended attribute `name` of `path` itself (links aren't followed); `None` when it has
+/// none or its filesystem keeps none. Never touches the file's content.
+pub(crate) fn xattr(path: &Path, name: &std::ffi::CStr) -> io::Result<Option<Vec<u8>>> {
+    use std::os::unix::ffi::OsStrExt;
+    #[cfg(target_os = "macos")]
+    const NO_ATTRIBUTE: i32 = libc::ENOATTR;
+    #[cfg(not(target_os = "macos"))]
+    const NO_ATTRIBUTE: i32 = libc::ENODATA;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+    loop {
+        // The size first, then the value; it can grow in between, then ask again.
+        let size = get_xattr(&path, name, &mut []);
+        let mut value = vec![0; usize::try_from(size).unwrap_or(0)];
+        let read = if size < 0 {
+            size
+        } else {
+            get_xattr(&path, name, &mut value)
+        };
+        if read >= 0 {
+            value.truncate(read.unsigned_abs());
+            return Ok(Some(value));
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            Some(code) if code == NO_ATTRIBUTE || code == libc::ENOTSUP => return Ok(None),
+            Some(libc::ERANGE) => continue,
+            _ => return Err(error),
+        }
+    }
+}
+
+/// `getxattr` without following links; an empty `buf` asks for the size.
+fn get_xattr(path: &std::ffi::CStr, name: &std::ffi::CStr, buf: &mut [u8]) -> isize {
+    let out = if buf.is_empty() {
+        std::ptr::null_mut()
+    } else {
+        buf.as_mut_ptr().cast()
+    };
+    // SAFETY: NUL-terminated path and name; `out` is null (size query) or `buf`, writable for
+    // `buf.len()` bytes.
+    #[cfg(target_os = "macos")]
+    return unsafe {
+        libc::getxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            out,
+            buf.len(),
+            0,
+            libc::XATTR_NOFOLLOW,
+        )
+    };
+    // SAFETY: as above.
+    #[cfg(not(target_os = "macos"))]
+    unsafe {
+        libc::lgetxattr(path.as_ptr(), name.as_ptr(), out, buf.len())
+    }
+}

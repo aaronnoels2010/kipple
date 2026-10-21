@@ -17,8 +17,8 @@ use kipple_core::location::VolumeCaps;
 use kipple_core::time::Timestamp;
 
 pub use os::{
-    NativeDirectories, NativePlaceholders, NativeSyncRoots, NativeVolumes, canonical,
-    never_download_placeholders, peak_memory,
+    NativeDirectories, NativeDownloadOrigins, NativePlaceholders, NativeScreenshots,
+    NativeSyncRoots, NativeVolumes, canonical, never_download_placeholders, peak_memory,
 };
 pub use protected::ProtectedPaths;
 
@@ -114,6 +114,18 @@ pub trait Placeholders: Send + Sync {
     /// Whether `path` is an online-only cloud file (its contents must never be read: that
     /// would download it). `Unsupported` where the OS has no such files (Linux).
     fn is_placeholder(&self, path: &Path) -> PortResult<bool>;
+}
+
+pub trait DownloadOrigins: Send + Sync {
+    /// The URL `path` was downloaded from, if the OS recorded one (`None`: no record). Reads
+    /// metadata only, never the content, and doesn't follow links.
+    fn origin_of(&self, path: &Path) -> PortResult<Option<String>>;
+}
+
+/// Called for every new image, so adapters work out what they need once, when they're made.
+pub trait Screenshots: Send + Sync {
+    /// Whether `path` is a screenshot the OS's own tool took. Never reads the content.
+    fn is_screenshot(&self, path: &Path) -> PortResult<bool>;
 }
 
 /// Who syncs a folder.
