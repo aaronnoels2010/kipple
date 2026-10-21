@@ -4,7 +4,7 @@
 //! rebuilds it.
 
 /// Bump on any schema change. Stored in `PRAGMA user_version`.
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Paths are BLOBs ([`crate::path_bytes`]); times are nanoseconds since the epoch; kinds and
 /// categories are the stable codes from `kipple-core`.
@@ -66,6 +66,10 @@ CREATE INDEX item_size ON item (size);
 CREATE INDEX item_full_hash ON item (full_hash) WHERE full_hash IS NOT NULL;
 CREATE INDEX item_last_used ON item (last_used_at);
 CREATE INDEX item_modified ON item (modified_at);
+-- What the enrichers still have to look at, by Location. Partial, so it holds only that
+-- backlog: after the first enrich pass it's near empty, and costs a scan nothing to keep up.
+CREATE INDEX item_to_enrich ON item (location_id, id)
+  WHERE enriched_at IS NULL AND kind IN ('file', 'bundle') AND is_os_metadata = 0;
 
 -- Substring search on names: trigrams, case- and accent-insensitive.
 CREATE VIRTUAL TABLE item_name_fts USING fts5(

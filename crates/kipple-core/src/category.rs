@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Type categories (FUNCTIONAL_PLAN §2): every Item has exactly one. Mostly decided by the file
-//! extension; Screenshots by the platform's screenshot flag, since screenshot names are
-//! localised and their extension is just `.png`.
+//! extension; by the content's magic bytes where the extension is missing, unknown or ambiguous
+//! (ARCHITECTURE §7.1 step 4); Screenshots by the platform's screenshot flag, since screenshot
+//! names are localised and their extension is just `.png`.
 
 use crate::item::ItemKind;
+
+/// What sniffing a file's first bytes (`infer`) found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sniffed<'a> {
+    /// The content wasn't read: a placeholder (reading would download it), or it couldn't be.
+    NotRead,
+    /// Read, but no type was recognised (most text files).
+    Unknown,
+    /// The MIME type it was recognised as, e.g. `"image/png"`.
+    Mime(&'a str),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TypeCategory {
@@ -102,6 +114,61 @@ impl TypeCategory {
         }
     }
 
+    /// The category for a sniffed MIME type (as `infer` names them), or `None` when it says
+    /// nothing useful: a program isn't an installer, and a certificate or a database is `Other`
+    /// whatever its extension claims.
+    pub fn from_mime(mime: &str) -> Option<Self> {
+        let category = match mime {
+            "image/vnd.djvu" => Self::Ebooks,
+            "image/vnd.dwg" => return None, // a CAD drawing
+            _ if mime.starts_with("image/") => Self::Images,
+            _ if mime.starts_with("video/") => Self::Videos,
+            _ if mime.starts_with("audio/") => Self::Audio,
+            _ if mime.starts_with("font/") => Self::Fonts,
+            "application/font-sfnt" | "application/font-woff" => Self::Fonts,
+            "application/pdf" => Self::Pdfs,
+            "application/msword"
+            | "application/rtf"
+            | "application/vnd.oasis.opendocument.text"
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                Self::Documents
+            }
+            "application/vnd.ms-excel"
+            | "application/vnd.oasis.opendocument.spreadsheet"
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
+                Self::Spreadsheets
+            }
+            "application/vnd.ms-powerpoint"
+            | "application/vnd.oasis.opendocument.presentation"
+            | "application/vnd.openxmlformats-officedocument.presentationml.presentation" => {
+                Self::Presentations
+            }
+            "application/zip"
+            | "application/gzip"
+            | "application/x-tar"
+            | "application/vnd.rar"
+            | "application/x-7z-compressed"
+            | "application/x-bzip2"
+            | "application/vnd.bzip3"
+            | "application/x-xz"
+            | "application/zstd"
+            | "application/x-lz4"
+            | "application/x-lzip"
+            | "application/x-compress"
+            | "application/x-cpio"
+            | "application/x-unix-archive"
+            | "application/vnd.ms-cab-compressed" => Self::Archives,
+            "application/x-apple-diskimage"
+            | "application/vnd.microsoft.portable-executable"
+            | "application/vnd.debian.binary-package"
+            | "application/x-rpm" => Self::Installers,
+            "application/epub+zip" | "application/x-mobipocket-ebook" => Self::Ebooks,
+            "text/html" | "text/xml" | "text/x-shellscript" => Self::Code,
+            _ => return None,
+        };
+        Some(category)
+    }
+
     /// The category of an Item. Folders and symlinks are `Other`; bundles count by their
     /// extension (`.photoslibrary` is Images). An image the platform flags as a screenshot is
     /// `Screenshots`.
@@ -112,12 +179,51 @@ impl TypeCategory {
                 extension_of(name).map_or(Self::Other, |ext| Self::from_lowercase_extension(&ext))
             }
         };
-        if is_screenshot && category == Self::Images {
+        category.screenshot_if(is_screenshot)
+    }
+
+    /// Like [`TypeCategory::of`], but where the name can't tell ([`needs_sniffing`]) a
+    /// recognised sniffed type wins over the extension. A `.key` file is a Keynote presentation
+    /// when it's a zip, and otherwise (a key file) `Other`; a `.ts` file that isn't a transport
+    /// stream is TypeScript. Content that wasn't read keeps the extension's guess.
+    pub fn classify(kind: ItemKind, name: &str, sniffed: Sniffed, is_screenshot: bool) -> Self {
+        let by_name = Self::of(kind, name, is_screenshot);
+        if !needs_sniffing(kind, name) {
+            return by_name;
+        }
+        let key_file = extension_of(name).as_deref() == Some("key");
+        let category = match sniffed {
+            Sniffed::NotRead => return by_name,
+            Sniffed::Mime("application/zip") if key_file => Self::Presentations,
+            Sniffed::Mime(mime) => match Self::from_mime(mime) {
+                Some(category) => category,
+                None if key_file => Self::Other,
+                None => by_name,
+            },
+            Sniffed::Unknown if key_file => Self::Other,
+            Sniffed::Unknown => by_name,
+        };
+        category.screenshot_if(is_screenshot)
+    }
+
+    fn screenshot_if(self, is_screenshot: bool) -> Self {
+        if is_screenshot && self == Self::Images {
             Self::Screenshots
         } else {
-            category
+            self
         }
     }
+}
+
+/// Whether a file's category needs its content sniffed: its name has no extension, one this
+/// table doesn't know, or an ambiguous one (`.ts`: TypeScript or an MPEG transport stream;
+/// `.key`: Keynote or a key file). Only files: a bundle is a folder, and links aren't followed.
+pub fn needs_sniffing(kind: ItemKind, name: &str) -> bool {
+    kind == ItemKind::File
+        && extension_of(name).is_none_or(|ext| {
+            matches!(ext.as_str(), "ts" | "key")
+                || TypeCategory::from_lowercase_extension(&ext) == TypeCategory::Other
+        })
 }
 
 /// The extension of a file name, lowercased, without the dot: `"Photo.JPG"` → `"jpg"`,
@@ -245,6 +351,107 @@ mod tests {
                 TypeCategory::of(kind, name, screenshot),
                 category,
                 "{kind:?} {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn names_that_need_sniffing() {
+        let cases = [
+            (ItemKind::File, "notes", true, "no extension"),
+            (ItemKind::File, "download.bak", true, "unknown extension"),
+            (
+                ItemKind::File,
+                "index.ts",
+                true,
+                "TypeScript or an MPEG transport stream",
+            ),
+            (ItemKind::File, "server.KEY", true, "Keynote or a key file"),
+            (ItemKind::File, "Holiday.jpg", false, "known extension"),
+            (ItemKind::File, "Setup.dmg", false, "known extension"),
+            (
+                ItemKind::Bundle,
+                "Talk.key",
+                false,
+                "a bundle's contents are a folder",
+            ),
+            (ItemKind::Dir, "folder", false, "a folder"),
+            (ItemKind::Symlink, "link", false, "links aren't followed"),
+        ];
+        for (kind, name, sniff, why) in cases {
+            assert_eq!(needs_sniffing(kind, name), sniff, "{name}: {why}");
+        }
+    }
+
+    #[test]
+    fn categories_by_sniffed_mime() {
+        let cases = [
+            ("image/png", Some(Images)),
+            ("image/heif", Some(Images)),
+            ("image/vnd.djvu", Some(Ebooks)),
+            ("video/mp2t", Some(Videos)),
+            ("video/quicktime", Some(Videos)),
+            ("audio/mpeg", Some(Audio)),
+            ("application/pdf", Some(Pdfs)),
+            ("application/zip", Some(Archives)),
+            ("application/gzip", Some(Archives)),
+            ("application/x-apple-diskimage", Some(Installers)),
+            (
+                "application/vnd.microsoft.portable-executable",
+                Some(Installers),
+            ),
+            (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                Some(Documents),
+            ),
+            ("application/vnd.ms-excel", Some(Spreadsheets)),
+            (
+                "application/vnd.oasis.opendocument.presentation",
+                Some(Presentations),
+            ),
+            ("application/epub+zip", Some(Ebooks)),
+            ("font/woff2", Some(Fonts)),
+            ("application/font-sfnt", Some(Fonts)),
+            ("text/x-shellscript", Some(Code)),
+            ("application/x-executable", None), // a program, not an installer
+            ("application/x-x509-ca-cert", None),
+            ("application/octet-stream", None),
+            ("", None),
+        ];
+        for (mime, category) in cases {
+            assert_eq!(TypeCategory::from_mime(mime), category, "{mime:?}");
+        }
+    }
+
+    #[test]
+    fn a_sniffed_type_wins_only_where_the_name_cant_tell() {
+        use Sniffed::{Mime, NotRead, Unknown};
+        let file = ItemKind::File;
+        #[rustfmt::skip]
+        let cases = [
+            // (kind, name, sniffed, screenshot, category, why)
+            (file, "IMG_0042", Mime("image/jpeg"), false, Images, "no extension"),
+            (file, "photo.download", Mime("image/png"), true, Screenshots, "a screenshot after sniffing"),
+            (file, "archive.bin", Mime("application/zip"), false, Archives, "unknown extension"),
+            (file, "archive.bin", Unknown, false, Other, "read, but nothing recognised"),
+            (file, "archive.bin", NotRead, false, Other, "a placeholder isn't read"),
+            (file, "recording.ts", Mime("video/mp2t"), false, Videos, "a transport stream"),
+            (file, "main.ts", Unknown, false, Code, "TypeScript is text"),
+            (file, "main.ts", NotRead, false, Code, "not read: the extension's guess"),
+            (file, "Talk.key", Mime("application/zip"), false, Presentations, "Keynote files are zips"),
+            (file, "server.key", Unknown, false, Other, "a key file"),
+            (file, "server.key", Mime("application/x-x509-ca-cert"), false, Other, "a DER key file"),
+            (file, "Talk.key", NotRead, false, Presentations, "not read: the extension's guess"),
+            (file, "report.pdf", Mime("application/zip"), false, Pdfs, "a known extension isn't sniffed"),
+            (file, "Shot.png", NotRead, true, Screenshots, "like `of`"),
+            (ItemKind::Bundle, "Talk.key", Mime("application/zip"), false, Presentations, "bundles aren't sniffed"),
+            (ItemKind::Dir, "data", Mime("image/png"), false, Other, "folders aren't sniffed"),
+        ];
+        for (kind, name, sniffed, screenshot, category, why) in cases {
+            assert_eq!(
+                TypeCategory::classify(kind, name, sniffed, screenshot),
+                category,
+                "{name}: {why}"
             );
         }
     }

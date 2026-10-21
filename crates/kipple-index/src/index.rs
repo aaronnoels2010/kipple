@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use kipple_core::category::{TypeCategory, extension_of};
+use kipple_core::enrichment::{Enrichment, MediaMeta};
 use kipple_core::identity::{ContentHash, ContentStamp, FileId, Identity, VolumeId};
 use kipple_core::item::{Item, ItemId, ItemKind};
 use kipple_core::location::{
@@ -64,6 +65,19 @@ fn page_sql(filter: &str, n: usize, keyset: bool) -> String {
 fn children_sql(keyset: bool) -> String {
     page_sql("location_id = ?1 AND parent_path = ?2", 2, keyset)
 }
+
+/// A Location's Items still to enrich after the ID `?2`, by ID, `?3` at a time. The filter
+/// repeats the `item_to_enrich` index's own `WHERE`, word for word, so SQLite picks it.
+fn to_enrich_sql() -> String {
+    format!(
+        "SELECT {ITEM_COLUMNS} FROM item WHERE location_id = ?1 AND id > ?2 AND {TO_ENRICH} \
+         ORDER BY id LIMIT ?3"
+    )
+}
+
+/// Files and bundles (for their download origin) that no enricher has looked at, or that
+/// changed since. OS metadata isn't worth reading.
+const TO_ENRICH: &str = "enriched_at IS NULL AND kind IN ('file', 'bundle') AND is_os_metadata = 0";
 
 impl IndexDb {
     /// Opens (or creates) the index at `path`. A different schema version means the index is
@@ -214,10 +228,13 @@ impl IndexDb {
     }
 
     /// Inserts or updates Items by (location, path) in one transaction, returning their IDs in
-    /// order. An update keeps the row ID, the last-used signal and the download origin. What
-    /// was read from the content (hashes, mime, EXIF, `enriched_at`) is kept only while the file
-    /// ID, size, mtime and ctime are unchanged: otherwise it's cleared, which tells the
-    /// enrichers to look again.
+    /// order. An update keeps the row ID, the last-used signal, the download origin and the
+    /// screenshot flag: the walker knows none of these, so it can set the flag but never clears
+    /// it ([`IndexDb::apply_enrichment`] does). What was read from the content (hashes,
+    /// mime, EXIF, a sniffed category, `enriched_at`) is kept only while the file ID, size, mtime
+    /// and ctime are unchanged: otherwise it's cleared, which tells the enrichers to look again.
+    /// So is `enriched_at` when a placeholder is downloaded: its content can be read now. Until
+    /// then the category is the walker's, still a screenshot if it's an image.
     pub fn upsert_items(&mut self, items: &[Item], scanned_at: Timestamp) -> Result<Vec<ItemId>> {
         self.upsert(items, scanned_at, true)
     }
@@ -275,6 +292,14 @@ impl IndexDb {
         // `WHERE true` keeps SQLite from reading `ON CONFLICT` as part of the SELECT.
         let unchanged = "item.file_id IS excluded.file_id AND item.size = excluded.size \
             AND item.modified_at = excluded.modified_at AND item.changed_at IS excluded.changed_at";
+        let enriched = format!(
+            "{unchanged} AND NOT (item.is_placeholder AND NOT excluded.is_placeholder) \
+             AND item.enriched_at IS NOT NULL"
+        );
+        let (images, screenshots) = (
+            TypeCategory::Images.code(),
+            TypeCategory::Screenshots.code(),
+        );
         let returning = if ids {
             "RETURNING location_id, path, id"
         } else {
@@ -289,8 +314,11 @@ impl IndexDb {
                    size = excluded.size, created_at = excluded.created_at, \
                    modified_at = excluded.modified_at, changed_at = excluded.changed_at, \
                    file_id = excluded.file_id, volume_id = excluded.volume_id, \
-                   type_category = excluded.type_category, is_hidden = excluded.is_hidden, \
-                   is_placeholder = excluded.is_placeholder, is_screenshot = excluded.is_screenshot, \
+                   type_category = iif({enriched}, item.type_category, \
+                     iif(item.is_screenshot AND excluded.type_category = '{images}', \
+                       '{screenshots}', excluded.type_category)), \
+                   is_screenshot = item.is_screenshot OR excluded.is_screenshot, \
+                   is_hidden = excluded.is_hidden, is_placeholder = excluded.is_placeholder, \
                    is_os_metadata = excluded.is_os_metadata, \
                    quick_hash = coalesce(excluded.quick_hash, iif({unchanged}, item.quick_hash, NULL)), \
                    full_hash = coalesce(excluded.full_hash, iif({unchanged}, item.full_hash, NULL)), \
@@ -298,7 +326,7 @@ impl IndexDb {
                    phash = iif({unchanged}, item.phash, NULL), \
                    mime = iif({unchanged}, item.mime, NULL), \
                    meta_json = iif({unchanged}, item.meta_json, NULL), \
-                   enriched_at = iif({unchanged}, item.enriched_at, NULL), \
+                   enriched_at = iif({enriched}, item.enriched_at, NULL), \
                    scanned_at = excluded.scanned_at {returning}"
             ))?;
             // RETURNING has no guaranteed order: map the IDs back by (location, path).
@@ -401,6 +429,62 @@ impl IndexDb {
                 n => deleted += n,
             }
         }
+    }
+
+    /// Up to `limit` files and bundles of `location` that no enricher has looked at since they
+    /// last changed, by ID, after `after`. Placeholders are included: their metadata (origin,
+    /// screenshot flag) can be read, just not their content.
+    pub fn items_to_enrich(
+        &self,
+        location: LocationId,
+        after: Option<ItemId>,
+        limit: usize,
+    ) -> Result<Vec<Item>> {
+        let mut stmt = self.conn.prepare_cached(&to_enrich_sql())?;
+        stmt.query_map(
+            params![
+                location.0,
+                after.map_or(i64::MIN, |id| id.0),
+                i64::try_from(limit).unwrap_or(i64::MAX)
+            ],
+            read_item,
+        )?
+        .collect()
+    }
+
+    /// Stores what the enrichers learned, in one transaction, and marks those Items enriched at
+    /// `at`. An Item that's gone, or whose file ID, content stamp or placeholder flag changed
+    /// since the enricher saw it (a rescan got there first), is skipped: it will be enriched
+    /// again. Returns how many were stored.
+    pub fn apply_enrichment(&mut self, enrichments: &[Enrichment], at: Timestamp) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut applied = 0;
+        {
+            let mut update = tx.prepare_cached(
+                "UPDATE item SET mime = ?1, type_category = ?2, is_screenshot = ?3, \
+                   origin_url = ?4, meta_json = ?5, enriched_at = ?6 \
+                 WHERE id = ?7 AND file_id IS ?8 AND size = ?9 AND modified_at = ?10 \
+                   AND changed_at IS ?11 AND is_placeholder = ?12",
+            )?;
+            for e in enrichments {
+                applied += update.execute(params![
+                    e.mime,
+                    e.category.code(),
+                    e.is_screenshot,
+                    e.origin_url,
+                    meta_json(&e.media),
+                    at.0,
+                    e.item.0,
+                    e.file.map(|f| f.0.to_be_bytes()),
+                    i64::try_from(e.content.size).unwrap_or(i64::MAX),
+                    e.content.modified.0,
+                    e.content.changed.map(|t| t.0),
+                    e.is_placeholder,
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(applied)
     }
 
     /// Items whose name contains `query` (case- and accent-insensitive), sorted by name.
@@ -512,6 +596,48 @@ fn normal(path: &Path) -> PathBuf {
     path.components().collect()
 }
 
+/// `media` as the `meta_json` column: a JSON object of the fields that are known, times in
+/// nanoseconds like every other column. `None` when nothing is.
+fn meta_json(media: &MediaMeta) -> Option<String> {
+    let MediaMeta {
+        width,
+        height,
+        taken_at,
+        camera_make,
+        camera_model,
+        orientation,
+    } = media;
+    let quoted = |text: &Option<String>| {
+        text.as_ref().map(|text| {
+            let mut out = String::from('"');
+            for c in text.chars() {
+                match c {
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    '\n' => out.push_str("\\n"),
+                    c if c < ' ' => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+                    c => out.push(c),
+                }
+            }
+            out.push('"');
+            out
+        })
+    };
+    let fields = [
+        ("width", width.map(|n| n.to_string())),
+        ("height", height.map(|n| n.to_string())),
+        ("taken_at", taken_at.map(|t| t.0.to_string())),
+        ("camera_make", quoted(camera_make)),
+        ("camera_model", quoted(camera_model)),
+        ("orientation", orientation.map(|n| n.to_string())),
+    ];
+    let known: Vec<_> = fields
+        .into_iter()
+        .filter_map(|(key, value)| Some(format!("\"{key}\":{}", value?)))
+        .collect();
+    (!known.is_empty()).then(|| format!("{{{}}}", known.join(",")))
+}
+
 /// An Item from a row of [`ITEM_COLUMNS`]. An unknown kind or category code is an error: only
 /// this code writes them, so it means a bug or a damaged index (rescanning rebuilds it).
 fn read_item(r: &Row) -> Result<Item> {
@@ -549,6 +675,7 @@ mod tests {
     use std::path::PathBuf;
 
     use kipple_core::category::TypeCategory;
+    use kipple_core::enrichment::{Enrichment, MediaMeta};
     use kipple_core::identity::{ContentHash, ContentStamp, FileId, Identity, VolumeId};
     use kipple_core::item::ItemKind;
     use kipple_core::location::{LocationKind, StorageKind, TrashSupport, UserFolder, VolumeCaps};
@@ -998,6 +1125,286 @@ mod tests {
                 .unwrap()
                 .is_empty(),
             "another Location's folder"
+        );
+    }
+
+    fn enrichment(item: &Item) -> Enrichment {
+        Enrichment {
+            item: item.id.expect("stored"),
+            file: item.identity.file,
+            content: item.content.clone(),
+            is_placeholder: item.is_placeholder,
+            mime: Some("image/png".into()),
+            category: TypeCategory::Images,
+            is_screenshot: false,
+            origin_url: None,
+            media: MediaMeta::default(),
+        }
+    }
+
+    /// The stored Item at `rel`.
+    fn stored(db: &IndexDb, rel: &str) -> Item {
+        let path = PathBuf::from(ROOT).join(rel);
+        db.items_in(LocationId(1), path.parent().unwrap())
+            .unwrap()
+            .into_iter()
+            .find(|i| i.identity.path == path)
+            .expect("stored")
+    }
+
+    #[test]
+    fn items_to_enrich_are_files_and_bundles_not_yet_enriched_paged_by_id() {
+        let mut placeholder = item("cloud.pdf", 3);
+        placeholder.is_placeholder = true;
+        let mut bundle = item("Kipple.app", 0);
+        bundle.kind = ItemKind::Bundle;
+        let mut dir = item("Sub", 0);
+        dir.kind = ItemKind::Dir;
+        let mut link = item("latest.pdf", 0);
+        link.kind = ItemKind::Symlink;
+        let mut metadata = item(".DS_Store", 6);
+        metadata.is_os_metadata = true;
+        let mut db = db_with(&[
+            item("a.png", 1),
+            item("b.png", 2),
+            placeholder,
+            bundle,
+            dir,
+            link,
+            metadata,
+            item("done.png", 7),
+        ]);
+        let mut usb = location();
+        usb.id = LocationId(2);
+        usb.path = "/Volumes/USB".into();
+        db.put_location(&usb).unwrap();
+        let mut elsewhere = item("x.png", 8);
+        elsewhere.location = LocationId(2);
+        elsewhere.identity.path = "/Volumes/USB/x.png".into();
+        db.upsert_items(&[elsewhere], Timestamp(1)).unwrap();
+        let done = stored(&db, "done.png");
+        db.apply_enrichment(&[enrichment(&done)], Timestamp(5))
+            .unwrap();
+
+        let mut seen = Vec::new();
+        let mut after = None;
+        loop {
+            let batch = db.items_to_enrich(LocationId(1), after, 2).unwrap();
+            assert!(batch.len() <= 2);
+            let Some(last) = batch.last() else { break };
+            after = last.id;
+            seen.extend(batch);
+        }
+        assert!(seen.windows(2).all(|w| w[0].id < w[1].id), "by id");
+        assert_eq!(
+            paths(&seen),
+            [
+                format!("{ROOT}/Kipple.app"),
+                format!("{ROOT}/a.png"),
+                format!("{ROOT}/b.png"),
+                format!("{ROOT}/cloud.pdf"),
+            ],
+            "not folders, links, OS metadata, enriched items or other Locations"
+        );
+        assert!(seen.iter().any(|i| i.is_placeholder), "placeholders too");
+    }
+
+    #[test]
+    fn items_to_enrich_seek_through_their_own_index() {
+        let db = db_with(&[]);
+        let plan = db
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {}", to_enrich_sql()))
+            .unwrap()
+            .query_map(params![1, 0, 10], |r| r.get::<_, String>(3))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>()
+            .join("; ");
+        assert!(plan.contains("item_to_enrich"), "{plan}");
+        assert!(!plan.contains("TEMP B-TREE"), "no sort: {plan}");
+    }
+
+    /// (mime, category, screenshot, origin, meta_json, enriched_at) as stored.
+    type Enriched = (
+        Option<String>,
+        String,
+        bool,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+    );
+
+    fn enriched(db: &IndexDb, id: ItemId) -> Enriched {
+        db.conn
+            .query_row(
+                "SELECT mime, type_category, is_screenshot, origin_url, meta_json, enriched_at \
+                 FROM item WHERE id = ?1",
+                [id.0],
+                |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                    ))
+                },
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn an_enrichment_stores_what_was_learned() {
+        let mut db = db_with(&[item("IMG_0042", 1), item("notes.txt", 2)]);
+        let photo = stored(&db, "IMG_0042");
+        let notes = stored(&db, "notes.txt");
+        let shot = Enrichment {
+            mime: Some("image/jpeg".into()),
+            category: TypeCategory::Screenshots,
+            is_screenshot: true,
+            origin_url: Some("https://example.org/a.jpg".into()),
+            media: MediaMeta {
+                width: Some(4032),
+                height: Some(3024),
+                taken_at: Some(Timestamp(1_700_000_000_000_000_000)),
+                camera_make: Some("Apple".into()),
+                camera_model: Some("iPhone \"15\"\n".into()),
+                orientation: Some(6),
+            },
+            ..enrichment(&photo)
+        };
+        let plain = Enrichment {
+            mime: None,
+            category: TypeCategory::Documents,
+            ..enrichment(&notes)
+        };
+        assert_eq!(
+            db.apply_enrichment(&[shot, plain], Timestamp(9)).unwrap(),
+            2
+        );
+        assert_eq!(
+            enriched(&db, photo.id.unwrap()),
+            (
+                Some("image/jpeg".into()),
+                "screenshots".into(),
+                true,
+                Some("https://example.org/a.jpg".into()),
+                Some(
+                    r#"{"width":4032,"height":3024,"taken_at":1700000000000000000,"camera_make":"Apple","camera_model":"iPhone \"15\"\n","orientation":6}"#
+                        .into()
+                ),
+                Some(9),
+            )
+        );
+        assert_eq!(
+            enriched(&db, notes.id.unwrap()),
+            (None, "documents".into(), false, None, None, Some(9)),
+            "no media metadata: no JSON"
+        );
+        assert!(
+            db.items_to_enrich(LocationId(1), None, 10)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn an_enrichment_raced_by_a_rescan_is_dropped() {
+        let mut db = db_with(&[item("a.png", 1), item("b.png", 2), item("c.png", 3)]);
+        let read: Vec<_> = ["a.png", "b.png", "c.png"]
+            .map(|rel| enrichment(&stored(&db, rel)))
+            .into();
+        // While the enricher read them: a.png was rewritten, b.png deleted.
+        db.upsert_items(&[item("a.png", 100)], Timestamp(2))
+            .unwrap();
+        db.delete_items(&[read[1].item]).unwrap();
+        assert_eq!(db.apply_enrichment(&read, Timestamp(9)).unwrap(), 1);
+        assert_eq!(enriched(&db, read[0].item).5, None, "stale: enrich again");
+        assert_eq!(enriched(&db, read[2].item).5, Some(9));
+
+        // The same goes for a placeholder that was downloaded meanwhile: its content wasn't read.
+        let mut cloud = item("cloud.png", 4);
+        cloud.is_placeholder = true;
+        db.upsert_items(std::slice::from_ref(&cloud), Timestamp(3))
+            .unwrap();
+        let seen = enrichment(&stored(&db, "cloud.png"));
+        db.upsert_items(&[item("cloud.png", 4)], Timestamp(4))
+            .unwrap();
+        assert_eq!(db.apply_enrichment(&[seen], Timestamp(9)).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_rescan_keeps_the_screenshot_flag_and_the_sniffed_category() {
+        let mut db = db_with(&[item("IMG_0042", 1)]);
+        let photo = stored(&db, "IMG_0042");
+        let shot = Enrichment {
+            category: TypeCategory::Screenshots,
+            is_screenshot: true,
+            ..enrichment(&photo)
+        };
+        db.apply_enrichment(&[shot], Timestamp(9)).unwrap();
+        // The walker knows neither: an unchanged file whose hidden flag changed.
+        let mut hidden = item("IMG_0042", 1);
+        hidden.is_hidden = true;
+        db.upsert_items(&[hidden], Timestamp(10)).unwrap();
+        let after = stored(&db, "IMG_0042");
+        assert!(after.is_hidden && after.is_screenshot);
+        assert_eq!(after.category, TypeCategory::Screenshots);
+    }
+
+    #[test]
+    fn a_changed_item_takes_the_walkers_category_but_stays_a_screenshot() {
+        let mut db = db_with(&[item("Shot.png", 1), item("IMG_0042", 2)]);
+        let shot = Enrichment {
+            category: TypeCategory::Screenshots,
+            is_screenshot: true,
+            ..enrichment(&stored(&db, "Shot.png"))
+        };
+        let photo = Enrichment {
+            category: TypeCategory::Screenshots,
+            is_screenshot: true,
+            ..enrichment(&stored(&db, "IMG_0042"))
+        };
+        db.apply_enrichment(&[shot, photo], Timestamp(9)).unwrap();
+        db.upsert_items(&[item("Shot.png", 11), item("IMG_0042", 12)], Timestamp(10))
+            .unwrap();
+        let shot = stored(&db, "Shot.png");
+        assert!(shot.is_screenshot, "the flag isn't content");
+        assert_eq!(shot.category, TypeCategory::Screenshots, "still an image");
+        let photo = stored(&db, "IMG_0042");
+        assert!(photo.is_screenshot);
+        assert_eq!(
+            photo.category,
+            TypeCategory::Other,
+            "the sniffed type is content: the extension's until it's sniffed again"
+        );
+    }
+
+    #[test]
+    fn an_item_not_yet_enriched_takes_the_walkers_category() {
+        let mut db = db_with(&[item("a.png", 1)]);
+        let mut renamed_type = item("a.png", 1);
+        renamed_type.category = TypeCategory::Other;
+        renamed_type.is_hidden = true;
+        db.upsert_items(&[renamed_type], Timestamp(2)).unwrap();
+        assert_eq!(stored(&db, "a.png").category, TypeCategory::Other);
+    }
+
+    #[test]
+    fn a_downloaded_placeholder_is_enriched_again() {
+        let mut cloud = item("cloud.png", 4);
+        cloud.is_placeholder = true;
+        let mut db = db_with(&[cloud]);
+        let seen = enrichment(&stored(&db, "cloud.png"));
+        db.apply_enrichment(&[seen], Timestamp(9)).unwrap();
+        // Same stamp, now local: its content can be read at last.
+        db.upsert_items(&[item("cloud.png", 4)], Timestamp(10))
+            .unwrap();
+        assert_eq!(
+            paths(&db.items_to_enrich(LocationId(1), None, 10).unwrap()),
+            [format!("{ROOT}/cloud.png")]
         );
     }
 

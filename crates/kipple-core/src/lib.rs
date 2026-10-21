@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod category;
+pub mod enrichment;
 pub mod facet;
 pub mod identity;
 pub mod item;
