@@ -99,6 +99,7 @@ These are the same checks CI runs (`.github/workflows/ci.yml`). Run them before 
 | `cargo xtask clippy-config` | Checks that the **generated** `clippy.toml` and `crates/kipple-core/clippy.toml` are up to date. To change the forbidden APIs, edit `xtask/src/clippy_config.rs` and run `cargo xtask clippy-config --write`; never edit the TOML files by hand |
 | `cargo deny check` | Licences (GPL-3.0-compatible only), security advisories, crate sources. Install with `brew install cargo-deny` or `cargo install cargo-deny --locked` |
 | `pnpm check:spdx` | Checks that every source file has the `GPL-3.0-or-later` licence header |
+| `cargo test -p kipple-index --release --test search_benchmark -- --ignored --nocapture` | The index benchmark: builds a 1M-item index and checks that name search stays under 100 ms (K-2.2). Takes a minute or two |
 | `pnpm check:npm-licenses` | Checks that every npm package in the lockfile has a licence on the `deny.toml` allowlist (plus OFL-1.1 for the bundled fonts and the permissive BlueOak-1.0.0) |
 | `pnpm test:scripts` | Runs the tests for the repo scripts |
 

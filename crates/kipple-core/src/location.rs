@@ -50,6 +50,80 @@ pub enum TrashSupport {
     Unknown,
 }
 
+// Stable codes stored in the index: never change an existing one.
+
+impl LocationKind {
+    pub const ALL: &'static [LocationKind] = &[
+        Self::UserFolder(UserFolder::Desktop),
+        Self::UserFolder(UserFolder::Downloads),
+        Self::UserFolder(UserFolder::Documents),
+        Self::UserFolder(UserFolder::Pictures),
+        Self::UserFolder(UserFolder::Music),
+        Self::UserFolder(UserFolder::Videos),
+        Self::Custom,
+        Self::ExternalDrive,
+        Self::NetworkDrive,
+    ];
+
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::UserFolder(UserFolder::Desktop) => "desktop",
+            Self::UserFolder(UserFolder::Downloads) => "downloads",
+            Self::UserFolder(UserFolder::Documents) => "documents",
+            Self::UserFolder(UserFolder::Pictures) => "pictures",
+            Self::UserFolder(UserFolder::Music) => "music",
+            Self::UserFolder(UserFolder::Videos) => "videos",
+            Self::Custom => "custom",
+            Self::ExternalDrive => "external",
+            Self::NetworkDrive => "network",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.code() == code)
+    }
+}
+
+impl StorageKind {
+    pub const ALL: &'static [StorageKind] = &[
+        Self::Ssd,
+        Self::Hdd,
+        Self::Network,
+        Self::Removable,
+        Self::Unknown,
+    ];
+
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Ssd => "ssd",
+            Self::Hdd => "hdd",
+            Self::Network => "network",
+            Self::Removable => "removable",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.code() == code)
+    }
+}
+
+impl TrashSupport {
+    pub const ALL: &'static [TrashSupport] = &[Self::Yes, Self::No, Self::Unknown];
+
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Yes => "yes",
+            Self::No => "no",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.code() == code)
+    }
+}
+
 /// Per-volume facts (CONTEXT.md, "Volume capabilities").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VolumeCaps {
@@ -148,6 +222,38 @@ mod tests {
             caps: caps(TrashSupport::Yes, case_sensitive),
             in_sync_root: false,
         }
+    }
+
+    #[test]
+    fn codes_round_trip_and_are_unique() {
+        fn check<T: Copy + PartialEq + std::fmt::Debug>(
+            all: &[T],
+            code: fn(T) -> &'static str,
+            from: fn(&str) -> Option<T>,
+        ) {
+            let codes: std::collections::BTreeSet<_> = all.iter().map(|v| code(*v)).collect();
+            assert_eq!(codes.len(), all.len(), "duplicate codes");
+            for v in all {
+                assert_eq!(from(code(*v)), Some(*v));
+            }
+            assert_eq!(from("nope"), None);
+        }
+        check(
+            LocationKind::ALL,
+            LocationKind::code,
+            LocationKind::from_code,
+        );
+        check(StorageKind::ALL, StorageKind::code, StorageKind::from_code);
+        check(
+            TrashSupport::ALL,
+            TrashSupport::code,
+            TrashSupport::from_code,
+        );
+        assert_eq!(
+            LocationKind::ALL.len(),
+            9,
+            "every LocationKind needs a code"
+        );
     }
 
     #[test]

@@ -168,12 +168,13 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
 
 - [x] **K-2.1 Core domain types** · S
   - **Done when:** `Item`, `Location`, `TypeCategory`, facets, `VolumeCaps`, `Identity` and `ContentStamp` are defined in `kipple-core`, with extension → type classification and table-driven tests.
-- [ ] **K-2.2 index.db** · M
+- [x] **K-2.2 index.db** · M
   - **Done when:**
     - The schema matches ARCH §6.1, including **FTS5 trigram** search on names.
     - The index is rebuilt when the schema version changes.
     - Batched upserts and keyset pagination work.
     - A query benchmark shows search < 100 ms at 1M rows.
+  - **Result (M-series Mac, release):** 1M Items inserted in 62 s (≈ 16k/s, batches of 10k through a staging table); name search ≤ 80 ms for the first or next page of 100, 9 ms for rare words, < 1 ms for 1–2 letters. Common words ("invoice": ~10 % of names) are the slow case, because all matches are sorted by name.
   - **Notes from K-2.1:** store `FileId` (u128) as a 16-byte BLOB (it doesn't fit an SQLite INTEGER); give `ItemKind`, `LocationKind`, `TrashSupport` and `StorageKind` stable codes like `TypeCategory::code()`; add a column for `VolumeCaps.storage`.
 - [ ] **K-2.3 Platform ports framework** · L
   - **Done when:**
@@ -206,6 +207,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - `._*` AppleDouble companion files (created by macOS on FAT/ExFAT, spike S1) are marked as OS metadata: hidden from counts, and a folder holding only `._*` files counts as empty.
     - Commands: `scan.start | pause | resume | cancel | status`.
     - Tests use temp trees, and the K-0.5 targets are met.
+  - **Notes from K-2.2:** normalise paths before they reach the index (`/r/` and `/r` are different rows today; a path without a file name is stored with the whole path as its name).
 - [ ] **K-2.7 Enrichers** · M
   - **Done when:**
     - Download origin is read on all three OSes.
@@ -225,6 +227,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - The sidebar shows locations with online/offline dots.
     - Scan progress is shown.
     - A 1M-row index scrolls smoothly.
+  - **Notes from K-2.2:** queries under 3 characters use LIKE, which only folds ASCII case and keeps accents (`ça` misses `Ça va.txt`); add a folded name column if that matters. Common words are the slow search case (all matches sorted by name, ~80 ms at 1M); measure cold-cache and on slower machines, and consider a hybrid plan.
 - [ ] **K-2.10 Open & reveal** · S
   - **Done when:**
     - `items.open` asks for confirmation for executables, installers and scripts, and records an "opened in Kipple" last-used signal.

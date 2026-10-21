@@ -19,6 +19,24 @@ pub enum ItemKind {
     Bundle,
 }
 
+impl ItemKind {
+    pub const ALL: [ItemKind; 4] = [Self::File, Self::Dir, Self::Symlink, Self::Bundle];
+
+    /// The stable code stored in the index. Never change an existing code.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::File => "file",
+            Self::Dir => "dir",
+            Self::Symlink => "symlink",
+            Self::Bundle => "bundle",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.code() == code)
+    }
+}
+
 /// What the index records about an Item. Its path is `identity.path`; the name, extension and
 /// parent folder are derived from it where the index needs them as columns.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,4 +53,19 @@ pub struct Item {
     /// Online-only cloud file: its contents are never read (that would download it).
     pub is_placeholder: bool,
     pub is_screenshot: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kind_codes_round_trip() {
+        let codes: Vec<_> = ItemKind::ALL.iter().map(|k| k.code()).collect();
+        assert_eq!(codes, ["file", "dir", "symlink", "bundle"]);
+        for kind in ItemKind::ALL {
+            assert_eq!(ItemKind::from_code(kind.code()), Some(kind));
+        }
+        assert_eq!(ItemKind::from_code("folder"), None);
+    }
 }
