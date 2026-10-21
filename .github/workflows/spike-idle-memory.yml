@@ -13,6 +13,10 @@ on:
         description: "Seconds of idle time before measuring"
         default: "30"
         required: true
+      oses:
+        description: "Runners, as a JSON list"
+        default: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+        required: true
 
 permissions:
   contents: read
@@ -25,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON(inputs.oses) }}
     defaults:
       run:
         shell: bash

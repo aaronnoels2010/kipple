@@ -88,13 +88,18 @@ fn main() {
             let (handle, mode) = (app.handle().clone(), mode.clone());
             std::thread::spawn(move || {
                 std::thread::sleep(delay);
-                let window = handle.get_webview_window("main").expect("the main window");
-                let result = match mode.as_str() {
-                    "hide" => window.hide(),
-                    "destroy" => window.destroy(),
-                    _ => Ok(()),
-                };
-                eprintln!("S8: {mode} -> {result:?}");
+                eprintln!("S8: {mode} requested");
+                // On the main thread: from a worker thread the call waited forever on Linux.
+                let main = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    let window = main.get_webview_window("main").expect("the main window");
+                    let result = match mode.as_str() {
+                        "hide" => window.hide(),
+                        "destroy" => window.destroy(),
+                        _ => Ok(()),
+                    };
+                    eprintln!("S8: {mode} -> {result:?}");
+                });
                 if let Some(after) = reopen_after {
                     std::thread::sleep(after);
                     let reopen = handle.clone();
