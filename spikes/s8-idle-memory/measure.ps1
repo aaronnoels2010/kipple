@@ -29,22 +29,26 @@ $rows = @()
 foreach ($mode in "open", "hide", "destroy") {
   foreach ($run in 1..$runs) {
     $env:S8_MODE = $mode
-    $p = Start-Process -FilePath $bin -PassThru
+    $log = "out\$mode-$run.log"
+    $p = Start-Process -FilePath $bin -PassThru -RedirectStandardError $log
     Start-Sleep -Seconds (8 + $idle)
     $tree = @(Get-Tree $p.Id)
     $ws = ($tree | Measure-Object -Property WorkingSetSize -Sum).Sum
     $priv = ($tree | Measure-Object -Property PrivatePageCount -Sum).Sum
-    $rows += [pscustomobject]@{ Mode = $mode; Run = $run; Processes = $tree.Count; WorkingSet = $ws; Private = $priv }
-    "$mode`t$run`t$($tree.Count)`t$ws`t$priv"
+    # Only count runs where the hide/destroy really happened (the app logs it).
+    $valid = ($mode -eq "open") -or [bool](Select-String -Path $log -Pattern "^S8: $mode -> Ok" -Quiet)
+    $rows += [pscustomobject]@{ Mode = $mode; Run = $run; Processes = $tree.Count; WorkingSet = $ws; Private = $priv; Valid = $valid }
+    "$mode`t$run`t$($tree.Count)`t$ws`t$priv`t$valid"
     $tree | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 2
   }
 }
 
-$md = @("### Windows ($runs runs, ${idle}s idle, median)", "", "| Mode | Processes | Working set (MiB) | Private bytes (MiB) |", "|---|---|---|---|")
+$md = @("### Windows ($runs runs, ${idle}s idle, median)", "", "| Mode | Processes | Working set (MiB) | Private bytes (MiB) | Valid runs |", "|---|---|---|---|---|")
 foreach ($mode in "open", "hide", "destroy") {
-  $sorted = @($rows | Where-Object Mode -eq $mode | Sort-Object WorkingSet)
+  $sorted = @($rows | Where-Object { $_.Mode -eq $mode -and $_.Valid } | Sort-Object WorkingSet)
+  if ($sorted.Count -eq 0) { $md += "| $mode | – | – | – | 0/$runs |"; continue }
   $m = $sorted[[int][math]::Floor(($sorted.Count - 1) / 2)]
-  $md += "| $mode | $($m.Processes) | $([math]::Round($m.WorkingSet / 1MB)) | $([math]::Round($m.Private / 1MB)) |"
+  $md += "| $mode | $($m.Processes) | $([math]::Round($m.WorkingSet / 1MB)) | $([math]::Round($m.Private / 1MB)) | $($sorted.Count)/$runs |"
 }
 $md | Tee-Object -FilePath out\results-Windows.md

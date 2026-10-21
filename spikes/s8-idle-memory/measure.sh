@@ -56,8 +56,19 @@ measure() { # pid -> "processes rss_kib private_kib"
   echo "$n $rss $priv"
 }
 
+stop_tree() { # kill the app and everything it started; leftovers break the next run on Linux
+  local pids
+  if [ "$OS" = Darwin ]; then pids="$1"; else pids="$(descendants "$1")"; fi
+  kill $pids 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    kill -0 $pids 2>/dev/null || return 0
+    sleep 0.5
+  done
+  kill -9 $pids 2>/dev/null || true
+}
+
 pid=""
-trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null || true' EXIT
+trap '[ -n "$pid" ] && stop_tree "$pid"' EXIT
 
 for mode in ${MODES:-open hide destroy}; do
   for run in $(seq "$RUNS"); do
@@ -66,8 +77,11 @@ for mode in ${MODES:-open hide destroy}; do
     pid=$!
     sleep $((8 + IDLE))
     read -r n rss priv < <(measure "$pid")
-    printf '%s\t%s\t%s\t%s\t%s\n' "$mode" "$run" "$n" "$rss" "$priv" | tee -a "$RAW"
-    kill "$pid"; wait "$pid" 2>/dev/null || true
+    # Only count runs where the hide/destroy really happened (the app logs it).
+    valid=1
+    [ "$mode" = open ] || grep -q "^S8: $mode -> Ok" "out/$mode-$run.log" || valid=0
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$mode" "$run" "$n" "$rss" "$priv" "$valid" | tee -a "$RAW"
+    stop_tree "$pid"; wait "$pid" 2>/dev/null || true
     pid=""
     sleep 2
   done
@@ -78,10 +92,11 @@ second=$([ "$OS" = Darwin ] && echo "Physical footprint" || echo "PSS")
 {
   echo "### $OS ($RUNS runs, ${IDLE}s idle, median)"
   echo
-  echo "| Mode | Processes | RSS (MiB) | $second (MiB) |"
-  echo "|---|---|---|---|"
+  echo "| Mode | Processes | RSS (MiB) | $second (MiB) | Valid runs |"
+  echo "|---|---|---|---|---|"
   for mode in open hide destroy; do
-    awk -F'\t' -v m="$mode" '$1 == m' "$RAW" | sort -t$'\t' -k4 -n | awk -F'\t' -v runs="$RUNS" '
-      NR == int((runs + 1) / 2) { printf "| %s | %d | %.0f | %.0f |\n", $1, $3, $4 / 1024, $5 / 1024 }'
+    valid=$(awk -F'\t' -v m="$mode" '$1 == m && $6 == 1' "$RAW" | wc -l | tr -d ' ')
+    awk -F'\t' -v m="$mode" '$1 == m && $6 == 1' "$RAW" | sort -t$'\t' -k4 -n | awk -F'\t' -v n="$valid" -v runs="$RUNS" '
+      NR == int((n + 1) / 2) { printf "| %s | %d | %.0f | %.0f | %d/%d |\n", $1, $3, $4 / 1024, $5 / 1024, n, runs }'
   done
 } | tee "out/results-$OS.md"
