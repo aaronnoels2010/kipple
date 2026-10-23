@@ -27,7 +27,7 @@ pub struct Enrichment {
     pub media: MediaMeta,
 }
 
-/// Dimensions and EXIF of an image or video. Empty for everything else.
+/// Dimensions and EXIF of an image. Empty for everything else.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MediaMeta {
     pub width: Option<u32>,

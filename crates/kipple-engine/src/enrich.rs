@@ -4,18 +4,21 @@
 //! name can't tell, and EXIF and dimensions of images. A placeholder is never opened: reading
 //! it would download it.
 //!
-//! A run pages through the Items still to enrich, [`BATCH`] at a time: it reads the files
+//! A pass pages through the Items still to enrich, [`BATCH`] at a time: it reads the files
 //! outside any transaction, then stores the batch in one. Pause and cancel take effect between
-//! batches. What a rescan changed meanwhile isn't stored, and waits for the next run.
+//! batches. What a rescan changed meanwhile isn't stored, and waits for the next pass. A job does
+//! one slice of a pass, [`SLICE`] Items at most, and then ends, saying where the next slice
+//! starts: a running job is never interrupted, so this is how a scan queued meanwhile gets its
+//! turn (ARCHITECTURE §7.1).
 
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read, Seek};
+use std::io::{self, Cursor, Read};
 use std::path::Path;
 
 use exif::{Exif, In, Tag, Value};
 use kipple_core::category::{Sniffed, TypeCategory, needs_sniffing};
 use kipple_core::enrichment::{Enrichment, MediaMeta};
-use kipple_core::item::{Item, ItemKind};
+use kipple_core::item::{Item, ItemId, ItemKind};
 use kipple_core::location::Location;
 use kipple_core::time::Timestamp;
 use kipple_index::IndexDb;
@@ -47,6 +50,8 @@ pub struct EnrichSummary {
     /// Fewer than `items` when some changed meanwhile, vanished, or turned into placeholders:
     /// those wait for the next scan and run.
     pub stored: u64,
+    /// Where the next slice starts; `None` when this one reached the end.
+    pub next: Option<ItemId>,
 }
 
 /// Why a run stopped. Each has a stable code for the UI (ADR-0004).
@@ -84,17 +89,26 @@ impl From<EnrichError> for JobError {
 /// batch takes well under a second on an SSD and a few on a slow share: short enough for a
 /// pause or cancel to feel immediate, and large enough that the one write per batch is cheap.
 pub const BATCH: usize = 256;
+/// Items per slice: what one job does before it ends and the next slice is queued. A few
+/// seconds on a slow share, so a scan never waits long behind it for a one-slot volume. A
+/// count rather than a time, so a slice is the same on every machine.
+pub const SLICE: usize = 4 * BATCH;
 /// Read for sniffing: enough for `infer`'s matchers (the zip-based Office formats look
 /// furthest) and for 43 transport-stream packets.
 const SNIFF_BYTES: u64 = 8 * 1024;
-/// Read for EXIF from TIFF-based files (TIFF, most RAW formats): `kamadak-exif` would read the
-/// whole file, and cameras write the tags near the start.
-const TIFF_EXIF_BYTES: u64 = 1024 * 1024;
+/// Read of an image for its EXIF and dimensions, which cameras and encoders write near the
+/// start. Neither reader stops by itself: `image` reads a whole JPEG before its headers, and
+/// `kamadak-exif` reads to the end of a file that has no EXIF.
+const IMAGE_HEAD_BYTES: u64 = 1024 * 1024;
 
-/// Enriches `location`'s Items that changed since they were last enriched (or never were). An
-/// offline Location is left alone; a file that can't be read gets what its metadata gives.
+/// Enriches one slice of `location`'s Items that changed since they were last enriched (or never
+/// were): up to [`SLICE`] of them, after `from`. A pass starts at `None` and goes on from each
+/// slice's [`EnrichSummary::next`] until that's `None`. The cursor moves past what couldn't be
+/// stored too, so a pass always ends; those Items wait for the next pass. An offline Location is
+/// left alone; a file that can't be read gets what its metadata gives.
 pub fn enrich(
     location: &Location,
+    from: Option<ItemId>,
     index: &mut IndexDb,
     ports: &EnrichPorts,
     control: &dyn Control,
@@ -102,8 +116,8 @@ pub fn enrich(
 ) -> Result<EnrichSummary, EnrichError> {
     let enricher = Enricher::new(ports);
     let mut summary = EnrichSummary::default();
-    let mut after = None;
-    loop {
+    let mut after = from;
+    for _ in 0..SLICE / BATCH {
         control.checkpoint().map_err(|_| EnrichError::Cancelled)?;
         // Checked per batch: an ejected drive would otherwise look like files gone one by one.
         if !is_online(location, ports.volumes) {
@@ -111,14 +125,19 @@ pub fn enrich(
         }
         let items = index.items_to_enrich(location.id, after, BATCH)?;
         let Some(last) = items.last() else {
-            break;
+            return Ok(summary);
         };
         after = last.id;
         let learned: Vec<Enrichment> = items.iter().filter_map(|i| enricher.enrich(i)).collect();
         summary.items += items.len() as u64;
         summary.stored += index.apply_enrichment(&learned, now)? as u64;
         control.progress(summary.items, None);
+        if items.len() < BATCH {
+            return Ok(summary);
+        }
     }
+    // Possibly nothing left after it: then the next slice finds that out.
+    summary.next = after;
     Ok(summary)
 }
 
@@ -140,8 +159,11 @@ impl<'a> Enricher<'a> {
     /// round (the next scan records that).
     fn enrich(&self, item: &Item) -> Option<Enrichment> {
         let path = &item.identity.path;
-        if std::fs::symlink_metadata(path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound) {
-            return None;
+        match std::fs::symlink_metadata(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
+            // Not a file any more (a FIFO or a link in its place): the next scan records that.
+            Ok(meta) if item.kind == ItemKind::File && !meta.is_file() => return None,
+            _ => {}
         }
         // Unsupported (Linux has no placeholders) or unreadable: as scanned.
         let placeholder = self.ports.placeholders.is_placeholder(path);
@@ -168,7 +190,7 @@ impl<'a> Enricher<'a> {
         let category = TypeCategory::classify(item.kind, &name, sniffed, is_screenshot);
         let media =
             if readable && matches!(category, TypeCategory::Images | TypeCategory::Screenshots) {
-                media_of(path)
+                media_of(path, is_raw(&name))
             } else {
                 MediaMeta::default()
             };
@@ -212,6 +234,12 @@ fn open(path: &Path) -> io::Result<File> {
         const FILE_FLAG_OPEN_NO_RECALL: u32 = 0x0010_0000;
         options.custom_flags(FILE_FLAG_OPEN_NO_RECALL);
     }
+    // Swapped since it was checked: a link isn't followed, and a FIFO doesn't block.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
     options.open(path)
 }
 
@@ -231,22 +259,37 @@ fn without_blob(url: String) -> String {
     }
 }
 
-/// Dimensions and EXIF of an image; empty where the file can't tell. The decoder's dimensions
-/// win: EXIF's are what the camera wrote, and an edited copy keeps them. They're the fallback
-/// for formats `image` can't read (HEIC, RAW). Only headers are read, never the pixels.
-fn media_of(path: &Path) -> MediaMeta {
-    let Ok(file) = open(path) else {
+/// Camera RAW files. Most are TIFF-based, and the first image in them is a small preview.
+fn is_raw(name: &str) -> bool {
+    let ext = name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
+    matches!(
+        ext.as_deref(),
+        Some("raw" | "dng" | "cr2" | "cr3" | "nef" | "arw" | "orf" | "rw2" | "raf" | "pef" | "srw")
+    )
+}
+
+/// Dimensions and EXIF of an image, from its first [`IMAGE_HEAD_BYTES`]; empty where they
+/// can't tell. Only headers are read, never the pixels. The decoder's dimensions win: EXIF's
+/// are what the camera wrote, and an edited copy keeps them. They're the fallback for formats
+/// `image` can't read (HEIC), and all there is for a `raw` file: the decoder would find its
+/// preview.
+fn media_of(path: &Path, raw: bool) -> MediaMeta {
+    let Ok(head) = open(path).and_then(head) else {
         return MediaMeta::default();
     };
-    let mut reader = BufReader::new(file);
-    let exif = read_exif(&mut reader);
-    let decoded = reader.rewind().ok().and_then(|()| {
-        image::ImageReader::new(reader)
-            .with_guessed_format()
-            .ok()?
-            .into_dimensions()
-            .ok()
-    });
+    // A head cut off mid-image is fine: the decoders read only the headers in it.
+    let decoded = (!raw)
+        .then(|| {
+            image::ImageReader::new(Cursor::new(head.as_slice()))
+                .with_guessed_format()
+                .ok()?
+                .into_dimensions()
+                .ok()
+        })
+        .flatten();
+    let exif = read_exif(head);
     let exif = exif.as_ref();
     let recorded = exif.and_then(|e| {
         Some((
@@ -268,21 +311,22 @@ fn media_of(path: &Path) -> MediaMeta {
     }
 }
 
-/// The EXIF of a JPEG, TIFF, HEIF, PNG or WebP file; `None` if it has none or it's unreadable.
-fn read_exif(reader: &mut BufReader<File>) -> Option<Exif> {
+/// The first [`IMAGE_HEAD_BYTES`] of `file`.
+fn head(file: impl Read) -> io::Result<Vec<u8>> {
+    let mut head = Vec::new();
+    file.take(IMAGE_HEAD_BYTES).read_to_end(&mut head)?;
+    Ok(head)
+}
+
+/// The EXIF in the `head` of a JPEG, TIFF (most RAW formats), HEIF, PNG or WebP file; `None` if
+/// it has none, it's further in, or it's unreadable.
+fn read_exif(head: Vec<u8>) -> Option<Exif> {
     let mut exif = exif::Reader::new();
     exif.continue_on_error(true);
-    let head = reader.fill_buf().ok()?;
     let read = if head.starts_with(b"II*\0") || head.starts_with(b"MM\0*") {
-        let mut tiff = Vec::new();
-        reader
-            .by_ref()
-            .take(TIFF_EXIF_BYTES)
-            .read_to_end(&mut tiff)
-            .ok()?;
-        exif.read_raw(tiff)
+        exif.read_raw(head)
     } else {
-        exif.read_from_container(reader)
+        exif.read_from_container(&mut Cursor::new(head))
     };
     // Damaged fields are skipped: keep the ones that could be read.
     read.or_else(|e| e.distill_partial_result(|_| {})).ok()
@@ -327,11 +371,11 @@ fn taken_at(exif: &Exif) -> Option<Timestamp> {
     timestamp_of(&time)
 }
 
-/// `time` as a Timestamp; `None` for a date that can't be (`0000:00:00`, month 13) or is out of
-/// range.
+/// `time` as a Timestamp; `None` for a date that can't be (`0000:00:00`, month 13, February
+/// 30th) or is out of range.
 fn timestamp_of(time: &exif::DateTime) -> Option<Timestamp> {
     if !(1..=12).contains(&time.month)
-        || !(1..=31).contains(&time.day)
+        || !(1..=days_in_month(time.year, time.month)).contains(&time.day)
         || time.hour > 23
         || time.minute > 59
         || time.second > 60
@@ -348,6 +392,17 @@ fn timestamp_of(time: &exif::DateTime) -> Option<Timestamp> {
         .checked_mul(1_000_000_000)?
         .checked_add(i64::from(time.nanosecond.unwrap_or(0)))?;
     Some(Timestamp(nanos))
+}
+
+/// How many days `month` (1–12) of `year` has, in the proleptic Gregorian calendar.
+fn days_in_month(year: u16, month: u8) -> u8 {
+    let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 /// Days from 1970-01-01 to a date of the proleptic Gregorian calendar (Howard Hinnant's
@@ -402,11 +457,28 @@ mod tests {
             &b"0000:00:00 00:00:00"[..],
             b"2026:13:01 00:00:00",
             b"2026:01:32 00:00:00",
+            b"2026:02:29 00:00:00", // not a leap year
+            b"1900:02:29 00:00:00", // nor is a century, unless it's a 400th
+            b"2026:02:31 00:00:00",
+            b"2026:04:31 00:00:00",
             b"2026:01:01 24:00:00",
             b"9999:12:31 23:59:59", // past 2262
         ] {
             assert_eq!(date(text, None), None, "{}", String::from_utf8_lossy(text));
         }
+    }
+
+    #[test]
+    fn leap_days_are_dates() {
+        assert!(date(b"2000:02:29 00:00:00", None).is_some());
+        assert!(date(b"2024:02:29 00:00:00", None).is_some());
+        assert!(date(b"2026:12:31 00:00:00", None).is_some());
+    }
+
+    #[test]
+    fn only_the_start_of_an_image_is_read() {
+        let endless = io::repeat(0xFF);
+        assert_eq!(head(endless).unwrap().len() as u64, IMAGE_HEAD_BYTES);
     }
 
     #[test]

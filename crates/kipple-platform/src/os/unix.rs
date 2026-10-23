@@ -91,6 +91,10 @@ pub(crate) fn xattr(path: &Path, name: &std::ffi::CStr) -> io::Result<Option<Vec
     loop {
         // The size first, then the value; it can grow in between, then ask again.
         let size = get_xattr(&path, name, &mut []);
+        if size == 0 {
+            // Asking again with an empty buffer would be another size query.
+            return Ok(Some(Vec::new()));
+        }
         let mut value = vec![0; usize::try_from(size).unwrap_or(0)];
         let read = if size < 0 {
             size

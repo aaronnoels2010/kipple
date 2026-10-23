@@ -604,7 +604,7 @@ pub struct NativeScreenshots {
 
 impl NativeScreenshots {
     /// Asks the shell for the folder once. `home` is only needed on Linux; same signature
-    /// everywhere.
+    /// everywhere. Once per process: a folder moved meanwhile counts from the next start.
     pub fn new(_home: PathBuf) -> Self {
         use windows_sys::Win32::UI::Shell::FOLDERID_Screenshots;
         Self {

@@ -2,13 +2,15 @@
 //! Scans (K-2.6): the `scan_*` commands and the `ScanProgress` event. Each scan is a job on the
 //! scheduler (kipple-engine::jobs) with its own index.db connection, so browsing and location
 //! changes go on while it runs. A scan that's done is followed by an enrich run of its Location
-//! (K-2.7), a low-priority job the UI doesn't see; the scan controls act on it too.
+//! (K-2.7): low-priority jobs the UI doesn't see, one slice of the backlog each, so a scan
+//! queued meanwhile goes first. The scan controls act on them too.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
+use kipple_core::item::ItemId;
 use kipple_core::location::{Location, LocationId};
 use kipple_engine::enrich::{EnrichError, EnrichPorts, enrich};
 use kipple_engine::jobs::{
@@ -98,22 +100,31 @@ struct Book {
     enriching: BTreeMap<JobId, Enriching>,
     /// Jobs asked to stop: no enrich run follows them, even one that got to the end first.
     stopping: BTreeSet<JobId>,
+    /// Between pause and resume: an enrich run queued meanwhile is paused too.
+    paused: bool,
 }
 
-/// An enrich run, queued or running. One per Location at most: a scan that's done while it runs
-/// asks for another after it (`again`), since the run may have paged past what changed.
+/// An enrich run (one slice of a pass), queued or running. One per Location at most. When it's
+/// done with more to do, the next slice goes on from `next`. A scan that's done while it runs,
+/// or before a slice after the first starts, asks for a new pass after it (`again`), since the
+/// pass may have paged past what changed.
 #[derive(Debug)]
 struct Enriching {
     location: Location,
+    /// Where the slice starts.
+    from: Option<ItemId>,
     started: bool,
     again: bool,
+    /// Where the next slice starts, once this one is done.
+    next: Option<ItemId>,
 }
 
 impl Book {
-    /// The Location to enrich after `event`, if any: a scan's, once it's done (unless a run for
-    /// it is still queued: that one sees the changes too), or again after a run, when asked.
-    /// Call before [`Book::apply`], which forgets finished jobs.
-    fn enrich_after(&mut self, event: &JobEvent) -> Option<Location> {
+    /// The Location to enrich after `event`, and from where, if any: a scan's, once it's done
+    /// (unless a first slice for it is still queued: that one sees the changes too); the next
+    /// slice after one that's done; or a new pass after a run that's done or failed, when a scan
+    /// asked. Call before [`Book::apply`], which forgets finished jobs.
+    fn enrich_after(&mut self, event: &JobEvent) -> Option<(Location, Option<ItemId>)> {
         match event {
             JobEvent::State(job, JobState::Running) => {
                 if let Some(run) = self.enriching.get_mut(job) {
@@ -122,14 +133,19 @@ impl Book {
                 None
             }
             JobEvent::Finished(job, outcome) => {
+                // Also what keeps a forgotten Location from being enriched again.
                 let stopped = self.stopping.remove(job);
-                if *outcome != Outcome::Done || stopped {
-                    self.enriching.remove(job);
-                    return None;
-                }
                 if let Some(run) = self.enriching.remove(job) {
-                    let known = self.scans.contains_key(&run.location.id);
-                    return (run.again && known).then_some(run.location);
+                    return match outcome {
+                        _ if stopped => None,
+                        Outcome::Cancelled => None,
+                        _ if run.again => Some((run.location, None)),
+                        Outcome::Done => run.next.map(|next| (run.location, Some(next))),
+                        Outcome::Failed(_) => None,
+                    };
+                }
+                if *outcome != Outcome::Done || stopped {
+                    return None;
                 }
                 let location = self.jobs.get(job)?;
                 match self
@@ -138,10 +154,10 @@ impl Book {
                     .find(|run| run.location.id == location.id)
                 {
                     Some(run) => {
-                        run.again |= run.started;
+                        run.again |= run.started || run.from.is_some();
                         None
                     }
-                    None => Some(location.clone()),
+                    None => Some((location.clone(), None)),
                 }
             }
             _ => None,
@@ -254,7 +270,12 @@ impl Shared {
         }
     }
 
-    fn run_enrich(&self, location: &Location, ctx: &JobContext) -> Result<(), JobError> {
+    fn run_enrich(
+        &self,
+        location: &Location,
+        from: Option<ItemId>,
+        ctx: &JobContext,
+    ) -> Result<(), JobError> {
         let mut index = IndexDb::open_for_scan(&self.index).map_err(|e| {
             tracing::error!(error = %e, "enrich: can't open index.db");
             EnrichError::Index(e)
@@ -265,9 +286,12 @@ impl Shared {
             origins: self.origins.as_ref(),
             screenshots: self.screenshots.as_ref(),
         };
-        match enrich(location, &mut index, &ports, ctx, now()) {
+        match enrich(location, from, &mut index, &ports, ctx, now()) {
             Ok(summary) => {
-                tracing::info!(location = location.id.0, ?summary, "enrich done");
+                tracing::info!(location = location.id.0, ?summary, "enrich slice done");
+                if let Some(run) = self.book().enriching.get_mut(&ctx.id()) {
+                    run.next = summary.next;
+                }
                 Ok(())
             }
             Err(e) => {
@@ -277,8 +301,9 @@ impl Shared {
         }
     }
 
-    /// Queues an enrich run of `location`, on its volume like a scan.
-    fn queue_enrich(self: &Arc<Self>, book: &mut Book, location: Location) {
+    /// Queues an enrich run of `location` from `from`, on its volume like a scan; paused if
+    /// the scans are.
+    fn queue_enrich(self: &Arc<Self>, book: &mut Book, location: Location, from: Option<ItemId>) {
         let Some(scheduler) = self.scheduler.get().and_then(Weak::upgrade) else {
             return; // shutting down
         };
@@ -286,13 +311,18 @@ impl Shared {
             .on_volume(location.volume.clone(), location.caps.storage);
         let shared = Arc::clone(self);
         let job_location = location.clone();
-        let job = scheduler.submit(spec, move |ctx| shared.run_enrich(&job_location, ctx));
+        let job = scheduler.submit(spec, move |ctx| shared.run_enrich(&job_location, from, ctx));
+        if book.paused {
+            scheduler.pause(job);
+        }
         book.enriching.insert(
             job,
             Enriching {
                 location,
+                from,
                 started: false,
                 again: false,
+                next: None,
             },
         );
     }
@@ -356,8 +386,8 @@ impl Scans {
             let mut book = shared.book();
             let enrich = book.enrich_after(&event);
             let changed = book.apply(event);
-            if let Some(location) = enrich {
-                shared.queue_enrich(&mut book, location);
+            if let Some((location, from)) = enrich {
+                shared.queue_enrich(&mut book, location, from);
             }
             drop(book);
             if !changed.is_empty() {
@@ -392,15 +422,20 @@ impl Scans {
         }
     }
 
-    /// Pauses every scan and enrich run.
+    /// Pauses every scan and enrich run, and the enrich runs queued until [`Scans::resume`].
+    /// Under the book's lock, so a run queued meanwhile is either paused here or sees the flag.
     pub fn pause(&self) {
-        for job in self.shared.book().job_ids(None) {
+        let mut book = self.shared.book();
+        book.paused = true;
+        for job in book.job_ids(None) {
             self.scheduler.pause(job);
         }
     }
 
     pub fn resume(&self) {
-        for job in self.shared.book().job_ids(None) {
+        let mut book = self.shared.book();
+        book.paused = false;
+        for job in book.job_ids(None) {
             self.scheduler.resume(job);
         }
     }
@@ -495,7 +530,7 @@ fn emitter(app: &AppHandle) -> Box<dyn Fn(Vec<ScanView>) + Send> {
 mod tests {
     use kipple_core::identity::VolumeId;
     use kipple_core::location::{LocationKind, StorageKind, TrashSupport, VolumeCaps};
-    use kipple_engine::enrich::BATCH;
+    use kipple_engine::enrich::{BATCH, SLICE};
     use kipple_platform::fake::{
         FakeDownloadOrigins, FakePlaceholders, FakeScreenshots, FakeVolumes,
     };
@@ -623,7 +658,7 @@ mod tests {
         );
     }
 
-    /// Lists folders only once the test lets it.
+    /// Lists folders only while the test lets it.
     struct Gate(Mutex<bool>, std::sync::Condvar);
 
     impl Directories for Gate {
@@ -827,6 +862,108 @@ mod tests {
             assert!(w.scans.wait(WAIT));
             // It stops between batches: a.txt, b.txt and the more-*.txt files, less one batch.
             assert_eq!(to_enrich(&w), 2, "remove: {remove}");
+        }
+    }
+
+    #[test]
+    fn a_scan_queued_during_an_enrich_slice_goes_before_the_next_slice() {
+        let gate = Arc::new(Gate(Mutex::new(true), std::sync::Condvar::new()));
+        let origins = Arc::new(HeldOrigins::default());
+        let mut w = world_with(gate.clone(), origins.clone(), SLICE);
+        // One slot: scans and slices take turns.
+        w.location.caps.storage = StorageKind::Hdd;
+        w.scans.start(std::slice::from_ref(&w.location));
+        origins.wait_until_running();
+        // Queued behind the slice; once it runs, it waits at the gate.
+        *gate.0.lock().unwrap() = false;
+        w.scans.start(std::slice::from_ref(&w.location));
+        origins.let_go();
+        wait_for_phase(&w, ScanPhase::Running);
+        // The slice ended at its bound, and the next one waits for the scan.
+        assert_eq!(
+            to_enrich(&w),
+            2,
+            "a.txt, b.txt and the more-*.txt files, less a slice"
+        );
+        assert_eq!(w.scans.shared.book().enriching.len(), 1, "the next slice");
+        *gate.0.lock().unwrap() = true;
+        gate.1.notify_all();
+        wait_for("the next slice", || to_enrich(&w) == 0);
+        assert!(w.scans.wait(WAIT));
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods)] // test fixture
+    fn an_enrich_run_queued_while_paused_waits_for_resume() {
+        let origins = Arc::new(HeldOrigins::default());
+        let w = world_with(Arc::new(NativeDirectories), origins.clone(), 0);
+        w.scans.start(std::slice::from_ref(&w.location));
+        origins.wait_until_running();
+        std::fs::write(w.root.join("a.txt"), "changed").unwrap();
+        w.scans.start(std::slice::from_ref(&w.location));
+        // Done while the run reads: it asks for another after it.
+        wait_for_phase(&w, ScanPhase::Done);
+        let first = *w.scans.shared.book().enriching.keys().next().unwrap();
+        w.scans.pause();
+        // In its last batch: it ends without another checkpoint, so the pause doesn't stop it.
+        origins.let_go();
+        wait_for("the run after it, paused", || {
+            let book = w.scans.shared.book();
+            let Some(&next) = book.enriching.keys().find(|&&job| job != first) else {
+                return false;
+            };
+            w.scans
+                .scheduler
+                .status()
+                .iter()
+                .any(|job| job.id == next && job.state == JobState::Paused)
+        });
+        assert_eq!(to_enrich(&w), 1, "a.txt waits");
+        w.scans.resume();
+        wait_for("the run after it", || to_enrich(&w) == 0);
+        assert!(w.scans.wait(WAIT));
+    }
+
+    fn run(location: &Location, from: Option<ItemId>, started: bool) -> Enriching {
+        Enriching {
+            location: location.clone(),
+            from,
+            started,
+            again: false,
+            next: None,
+        }
+    }
+
+    #[test]
+    fn a_run_that_failed_goes_again_if_a_scan_asked_but_not_if_cancelled() {
+        let w = world();
+        for (outcome, again) in [
+            (Outcome::Failed("enrich_offline"), true),
+            (Outcome::Cancelled, false),
+        ] {
+            let mut book = Book::default();
+            let mut asked = run(&w.location, None, true);
+            asked.again = true;
+            book.enriching.insert(JobId(1), asked);
+            let follow = book.enrich_after(&JobEvent::Finished(JobId(1), outcome));
+            assert_eq!(follow.is_some(), again, "{outcome:?}");
+        }
+    }
+
+    #[test]
+    fn a_scan_done_before_a_later_slice_starts_asks_for_a_new_pass() {
+        let w = world();
+        for (from, again) in [(None, false), (Some(ItemId(7)), true)] {
+            let mut book = Book::default();
+            book.jobs.insert(JobId(1), w.location.clone());
+            book.enriching
+                .insert(JobId(2), run(&w.location, from, false));
+            assert!(
+                book.enrich_after(&JobEvent::Finished(JobId(1), Outcome::Done))
+                    .is_none()
+            );
+            // A first slice sees what the scan changed; one that starts further on may not.
+            assert_eq!(book.enriching[&JobId(2)].again, again, "{from:?}");
         }
     }
 }

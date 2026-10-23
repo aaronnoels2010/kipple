@@ -12,12 +12,12 @@ use std::sync::Mutex;
 
 use kipple_core::category::TypeCategory;
 use kipple_core::identity::VolumeId;
-use kipple_core::item::{Item, ItemKind};
+use kipple_core::item::{Item, ItemId, ItemKind};
 use kipple_core::location::{
     Location, LocationId, LocationKind, StorageKind, TrashSupport, VolumeCaps,
 };
 use kipple_core::time::Timestamp;
-use kipple_engine::enrich::{BATCH, EnrichError, EnrichPorts, EnrichSummary, enrich};
+use kipple_engine::enrich::{BATCH, EnrichError, EnrichPorts, EnrichSummary, SLICE, enrich};
 use kipple_engine::jobs::JobError;
 use kipple_engine::scan::{Control, ScanOptions, ScanPorts, scan};
 use kipple_index::IndexDb;
@@ -123,6 +123,16 @@ impl World {
         origins: &dyn DownloadOrigins,
         control: &dyn Control,
     ) -> Result<EnrichSummary, EnrichError> {
+        self.enrich_slice(origins, control, None)
+    }
+
+    /// One slice, starting after `from`.
+    fn enrich_slice(
+        &mut self,
+        origins: &dyn DownloadOrigins,
+        control: &dyn Control,
+        from: Option<ItemId>,
+    ) -> Result<EnrichSummary, EnrichError> {
         let ports = EnrichPorts {
             volumes: &self.volumes,
             placeholders: &self.placeholders,
@@ -131,6 +141,7 @@ impl World {
         };
         enrich(
             &self.location,
+            from,
             &mut self.index,
             &ports,
             control,
@@ -214,11 +225,27 @@ struct Stored {
 }
 
 fn png(width: u32, height: u32) -> Vec<u8> {
+    encoded(
+        &image::RgbImage::new(width, height),
+        image::ImageFormat::Png,
+    )
+}
+
+fn encoded(image: &image::RgbImage, format: image::ImageFormat) -> Vec<u8> {
     let mut out = Cursor::new(Vec::new());
-    image::RgbImage::new(width, height)
-        .write_to(&mut out, image::ImageFormat::Png)
-        .unwrap();
+    image.write_to(&mut out, format).unwrap();
     out.into_inner()
+}
+
+/// Pseudo-random pixels: they don't compress, so the file comes out large.
+fn noise(width: u32, height: u32) -> image::RgbImage {
+    let mut seed = 1_u32;
+    image::RgbImage::from_fn(width, height, |_, _| {
+        image::Rgb([0; 3].map(|_: u8| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            seed.to_be_bytes()[0]
+        }))
+    })
 }
 
 /// MPEG transport stream packets: 188 bytes, each starting with the sync byte 0x47.
@@ -449,8 +476,12 @@ fn a_file_gone_since_the_scan_is_left_for_the_next_one() {
 }
 
 /// A JPEG of `width` × `height` with an EXIF segment holding `fields`. `frame: false` leaves
-/// the image data out, so only EXIF can tell its size (as with HEIC, which `image` can't read).
+/// the image data out, so the decoder can't tell its size and only EXIF can.
 fn jpeg_with_exif(width: u32, height: u32, fields: &[exif::Field], frame: bool) -> Vec<u8> {
+    jpeg_of_with_exif(&image::RgbImage::new(width, height), fields, frame)
+}
+
+fn jpeg_of_with_exif(image: &image::RgbImage, fields: &[exif::Field], frame: bool) -> Vec<u8> {
     let mut tiff = Cursor::new(Vec::new());
     let mut writer = exif::experimental::Writer::new();
     for field in fields {
@@ -463,11 +494,7 @@ fn jpeg_with_exif(width: u32, height: u32, fields: &[exif::Field], frame: bool) 
     app1.extend_from_slice(b"Exif\0\0");
     app1.extend_from_slice(&tiff);
 
-    let mut jpeg = Cursor::new(Vec::new());
-    image::RgbImage::new(width, height)
-        .write_to(&mut jpeg, image::ImageFormat::Jpeg)
-        .unwrap();
-    let jpeg = jpeg.into_inner();
+    let jpeg = encoded(image, image::ImageFormat::Jpeg);
     let mut out = jpeg[..2].to_vec(); // SOI
     out.extend_from_slice(&app1);
     if frame {
@@ -516,8 +543,9 @@ fn exif_and_dimensions_are_read_from_images() {
             true,
         ),
     );
+    // The decoder can't read it, as with HEIC (which `image` doesn't know): EXIF has the size.
     w.file(
-        "IMG_0002.heic",
+        "IMG_0002.jpg",
         jpeg_with_exif(
             8,
             6,
@@ -530,7 +558,7 @@ fn exif_and_dimensions_are_read_from_images() {
         ),
     );
     w.file("broken.jpg", b"\xFF\xD8\xFF\xE1\x00\x10Exif\0\0garbage");
-    // TIFF-based, like most RAW formats: only its start is read.
+    // TIFF, the container of most RAW formats: the EXIF is the file itself.
     let mut tiff = Cursor::new(Vec::new());
     let make = ascii(Tag::Make, b"Nikon");
     let mut writer = exif::experimental::Writer::new();
@@ -549,7 +577,7 @@ fn exif_and_dimensions_are_read_from_images() {
     );
     let utc = taken + 2 * 3600 * 1_000_000_000;
     assert_eq!(
-        w.stored("IMG_0002.heic").meta,
+        w.stored("IMG_0002.jpg").meta,
         Some(format!(
             r#"{{"width":4032,"height":3024,"taken_at":{utc}}}"#
         )),
@@ -699,4 +727,202 @@ fn an_offline_location_is_left_alone() {
         Err(EnrichError::Offline)
     ));
     assert_eq!(w.to_enrich(), ["a.png"]);
+}
+
+/// A TIFF of `width` × `height` grey pixels in one strip, with `fields`. Its IFD comes first and
+/// the pixels after it, as cameras write them.
+fn tiff(width: u32, height: u32, fields: &[exif::Field]) -> Vec<u8> {
+    use exif::{Field, In, Tag, Value};
+    let long = |tag, n| Field {
+        tag,
+        ifd_num: In::PRIMARY,
+        value: Value::Long(vec![n]),
+    };
+    let layout = [
+        long(Tag::ImageWidth, width),
+        long(Tag::ImageLength, height),
+        short(Tag::BitsPerSample, 8),
+        short(Tag::Compression, 1),
+        short(Tag::PhotometricInterpretation, 1),
+        short(Tag::SamplesPerPixel, 1),
+        long(Tag::RowsPerStrip, height),
+    ];
+    let pixels = vec![0x80; usize::try_from(width * height).unwrap()];
+    let strips = [pixels.as_slice()];
+    let mut writer = exif::experimental::Writer::new();
+    for field in layout.iter().chain(fields) {
+        writer.push_field(field);
+    }
+    writer.set_strips(&strips, In::PRIMARY);
+    let mut out = Cursor::new(Vec::new());
+    writer.write(&mut out, true).unwrap();
+    out.into_inner()
+}
+
+#[test]
+fn large_images_get_their_metadata_from_the_start_of_the_file() {
+    use exif::Tag;
+    let mut w = world();
+    let make = ascii(Tag::Make, b"Kipple Optics");
+    w.file(
+        "big.jpg",
+        jpeg_of_with_exif(&noise(1200, 900), std::slice::from_ref(&make), true),
+    );
+    w.file(
+        "big.png",
+        encoded(&noise(800, 600), image::ImageFormat::Png),
+    );
+    w.file(
+        "big.webp",
+        encoded(&noise(800, 600), image::ImageFormat::WebP),
+    );
+    w.file(
+        "big.bmp",
+        encoded(&noise(800, 600), image::ImageFormat::Bmp),
+    );
+    // An animation: the first frame is in the prefix, the rest (a long comment here) isn't.
+    let small = encoded(&noise(4, 2), image::ImageFormat::Gif);
+    let (frame, trailer) = small.split_at(small.len() - 1);
+    let mut gif = frame.to_vec();
+    gif.extend_from_slice(&[0x21, 0xFE]);
+    for _ in 0..(2 << 20) / 255 {
+        gif.push(255);
+        gif.extend_from_slice(&[b'x'; 255]);
+    }
+    gif.push(0);
+    gif.extend_from_slice(trailer);
+    w.file("big.gif", gif);
+    w.file("big.tif", tiff(1500, 1000, std::slice::from_ref(&make)));
+    for name in [
+        "big.jpg", "big.png", "big.webp", "big.bmp", "big.gif", "big.tif",
+    ] {
+        let size = fs::metadata(w.root.join(name)).unwrap().len();
+        assert!(size > 1 << 20, "{name} is larger than what's read: {size}");
+    }
+    w.scan();
+    w.enrich();
+    let cases = [
+        (
+            "big.jpg",
+            r#"{"width":1200,"height":900,"camera_make":"Kipple Optics"}"#,
+        ),
+        ("big.png", r#"{"width":800,"height":600}"#),
+        ("big.webp", r#"{"width":800,"height":600}"#),
+        ("big.bmp", r#"{"width":800,"height":600}"#),
+        ("big.gif", r#"{"width":4,"height":2}"#),
+        (
+            "big.tif",
+            r#"{"width":1500,"height":1000,"camera_make":"Kipple Optics"}"#,
+        ),
+    ];
+    for (name, meta) in cases {
+        assert_eq!(w.stored(name).meta.as_deref(), Some(meta), "{name}");
+    }
+}
+
+#[test]
+fn raw_files_get_their_size_from_exif_not_from_the_preview() {
+    use exif::Tag;
+    let mut w = world();
+    let make = ascii(Tag::Make, b"Nikon");
+    // TIFF-based: what the decoder finds first is a small preview.
+    w.file(
+        "DSC_0001.NEF",
+        tiff(
+            160,
+            120,
+            &[
+                make.clone(),
+                short(Tag::PixelXDimension, 6000),
+                short(Tag::PixelYDimension, 4000),
+            ],
+        ),
+    );
+    w.file("IMG_0001.dng", tiff(160, 120, std::slice::from_ref(&make)));
+    w.scan();
+    w.enrich();
+    assert_eq!(
+        w.stored("DSC_0001.NEF").meta.as_deref(),
+        Some(r#"{"width":6000,"height":4000,"camera_make":"Nikon"}"#)
+    );
+    assert_eq!(
+        w.stored("IMG_0001.dng").meta.as_deref(),
+        Some(r#"{"camera_make":"Nikon"}"#),
+        "no size rather than the preview's"
+    );
+}
+
+#[test]
+fn a_slice_stops_at_its_bound_and_the_next_one_goes_on_from_there() {
+    let mut w = world();
+    for i in 0..SLICE + 5 {
+        w.file(&format!("f{i:04}.txt"), "x");
+    }
+    w.scan();
+    let origins = w.origins.clone();
+    let first = w.enrich_slice(&origins, &(), None).unwrap();
+    assert_eq!((first.items, first.stored), (SLICE as u64, SLICE as u64));
+    assert!(first.next.is_some(), "more to do");
+    assert_eq!(w.to_enrich().len(), 5);
+    let second = w.enrich_slice(&origins, &(), first.next).unwrap();
+    assert_eq!((second.items, second.stored, second.next), (5, 5, None));
+    assert!(w.to_enrich().is_empty());
+}
+
+#[test]
+fn a_pass_ends_even_when_nothing_in_it_could_be_stored() {
+    let mut w = world();
+    for i in 0..=SLICE {
+        w.file(&format!("f{i:04}.txt"), "x");
+    }
+    w.scan();
+    // Gone since the scan: none is stored, and they're still the first to enrich.
+    for i in 0..=SLICE {
+        fs::remove_file(w.root.join(format!("f{i:04}.txt"))).unwrap();
+    }
+    let origins = w.origins.clone();
+    let first = w.enrich_slice(&origins, &(), None).unwrap();
+    assert_eq!((first.items, first.stored), (SLICE as u64, 0));
+    let second = w.enrich_slice(&origins, &(), first.next).unwrap();
+    assert_eq!(
+        (second.items, second.stored, second.next),
+        (1, 0, None),
+        "past them, to the end"
+    );
+    assert_eq!(w.to_enrich().len(), SLICE + 1, "left for the next scan");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_swapped_for_a_fifo_or_a_link_since_the_scan_is_not_opened() {
+    let mut w = world();
+    w.file("pipe.png", png(1, 1));
+    w.file("link.png", png(1, 1));
+    w.file("photo.png", png(2, 2));
+    w.scan();
+    let pipe = w.root.join("pipe.png");
+    fs::remove_file(&pipe).unwrap();
+    let made = std::process::Command::new("mkfifo")
+        .arg(&pipe)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    let link = w.root.join("link.png");
+    fs::remove_file(&link).unwrap();
+    std::os::unix::fs::symlink(&pipe, &link).unwrap();
+    // Opening a FIFO nobody writes to blocks: on another thread, so a hang fails the test.
+    let (done, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let summary = w.enrich();
+        done.send((w, summary)).unwrap();
+    });
+    let (w, summary) = ended
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("the run ends");
+    assert_eq!((summary.items, summary.stored), (3, 1));
+    assert_eq!(
+        w.to_enrich(),
+        ["link.png", "pipe.png"],
+        "the next scan sees what they are"
+    );
 }

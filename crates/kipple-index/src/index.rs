@@ -455,14 +455,16 @@ impl IndexDb {
     /// Stores what the enrichers learned, in one transaction, and marks those Items enriched at
     /// `at`. An Item that's gone, or whose file ID, content stamp or placeholder flag changed
     /// since the enricher saw it (a rescan got there first), is skipped: it will be enriched
-    /// again. Returns how many were stored.
+    /// again. A known origin is kept when none is found this time: a change or a save that
+    /// rewrote the file may have dropped where it came from, not changed it. Returns how many
+    /// were stored.
     pub fn apply_enrichment(&mut self, enrichments: &[Enrichment], at: Timestamp) -> Result<usize> {
         let tx = self.conn.transaction()?;
         let mut applied = 0;
         {
             let mut update = tx.prepare_cached(
                 "UPDATE item SET mime = ?1, type_category = ?2, is_screenshot = ?3, \
-                   origin_url = ?4, meta_json = ?5, enriched_at = ?6 \
+                   origin_url = coalesce(?4, origin_url), meta_json = ?5, enriched_at = ?6 \
                  WHERE id = ?7 AND file_id IS ?8 AND size = ?9 AND modified_at = ?10 \
                    AND changed_at IS ?11 AND is_placeholder = ?12",
             )?;
@@ -1333,6 +1335,26 @@ mod tests {
         db.upsert_items(&[item("cloud.png", 4)], Timestamp(4))
             .unwrap();
         assert_eq!(db.apply_enrichment(&[seen], Timestamp(9)).unwrap(), 0);
+    }
+
+    #[test]
+    fn enriching_again_without_finding_an_origin_keeps_the_known_one() {
+        let mut db = db_with(&[item("setup.zip", 1)]);
+        let first = Enrichment {
+            origin_url: Some("https://example.org/setup.zip".into()),
+            ..enrichment(&stored(&db, "setup.zip"))
+        };
+        let id = first.item;
+        db.apply_enrichment(&[first], Timestamp(9)).unwrap();
+        // Rewritten by a save that dropped the attribute: enriched again, and no origin found.
+        db.upsert_items(&[item("setup.zip", 2)], Timestamp(10))
+            .unwrap();
+        let again = enrichment(&stored(&db, "setup.zip"));
+        assert_eq!(db.apply_enrichment(&[again], Timestamp(11)).unwrap(), 1);
+        assert_eq!(
+            enriched(&db, id).3.as_deref(),
+            Some("https://example.org/setup.zip")
+        );
     }
 
     #[test]
