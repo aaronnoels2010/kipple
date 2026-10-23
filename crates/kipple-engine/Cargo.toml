@@ -14,9 +14,16 @@ kipple-index = { path = "../kipple-index" }
 kipple-platform = { path = "../kipple-platform" }
 # Exclusion patterns (`*.tmp`, `node_modules`).
 globset = { version = "=0.4.20", default-features = false }
+# Enrichers: dimensions from image headers (only the common formats' decoders), EXIF, and
+# types sniffed from the first bytes.
+image = { version = "=0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "tiff", "webp"] }
+infer = "=0.22.0"
+kamadak-exif = "=0.6.1"
 thiserror = "=2.0.21"
 
 [dev-dependencies]
+# Enricher tests read what was stored beyond `Item`'s fields (mime, origin, metadata).
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
 tempfile = "=3.27.0"
 
 [lints]

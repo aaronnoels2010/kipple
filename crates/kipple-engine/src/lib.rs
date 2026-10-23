@@ -3,6 +3,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod enrich;
 pub mod jobs;
 pub mod locations;
 pub mod scan;

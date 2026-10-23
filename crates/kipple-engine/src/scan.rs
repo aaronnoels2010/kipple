@@ -27,10 +27,10 @@ use kipple_platform::{DirEntry, Directories, EntryKind, PortError, ProtectedPath
 use crate::jobs::{JobContext, JobError};
 use crate::locations::is_online;
 
-/// How a scan reports progress and learns about pause and cancel: a job's [`JobContext`], or
-/// `()` to run to the end.
+/// How a scan or an enrich run reports progress and learns about pause and cancel: a job's
+/// [`JobContext`], or `()` to run to the end.
 pub trait Control: Sync {
-    /// Called by the walker before each folder.
+    /// Called before each unit of work: a folder for the walker, a batch for the enrichers.
     fn checkpoint(&self) -> Result<(), JobError>;
     fn progress(&self, done: u64, total: Option<u64>);
 }
@@ -490,7 +490,7 @@ fn diff(listed: Vec<Listed>, stored: Vec<Item>) -> Changes {
         .map(|item| (item.identity.path.clone(), item))
         .collect();
     let mut changes = Changes::default();
-    for Listed { mut item, contents } in listed {
+    for Listed { item, contents } in listed {
         let Some(old) = stored.remove(&item.identity.path) else {
             changes.added += 1;
             changes.upserts.push(item);
@@ -501,12 +501,6 @@ fn diff(listed: Vec<Listed>, stored: Vec<Item>) -> Changes {
         }
         if unchanged(&item, &old) {
             continue;
-        }
-        // The screenshot flag is the enricher's call, not the walker's.
-        if old.is_screenshot {
-            item.is_screenshot = true;
-            let name = item.identity.path.file_name().unwrap_or_default();
-            item.category = TypeCategory::of(item.kind, &name.to_string_lossy(), true);
         }
         changes.updated += 1;
         changes.upserts.push(item);

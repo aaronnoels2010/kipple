@@ -9,6 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use kipple_core::category::TypeCategory;
+use kipple_core::enrichment::{Enrichment, MediaMeta};
 use kipple_core::identity::{ContentHash, VolumeId};
 use kipple_core::item::{Item, ItemKind};
 use kipple_core::location::{
@@ -260,15 +262,27 @@ fn the_screenshot_flag_survives_a_change() {
     let mut w = world();
     w.file("Schermafbeelding.png", "1");
     w.scan();
-    let mut shot = w.indexed().remove("Schermafbeelding.png").unwrap();
-    shot.is_screenshot = true;
-    w.index.upsert_items(&[shot], Timestamp(1)).unwrap();
+    let shot = w.indexed().remove("Schermafbeelding.png").unwrap();
+    let learned = Enrichment {
+        item: shot.id.unwrap(),
+        file: shot.identity.file,
+        content: shot.content.clone(),
+        is_placeholder: false,
+        mime: None,
+        category: TypeCategory::Screenshots,
+        is_screenshot: true,
+        origin_url: None,
+        media: MediaMeta::default(),
+    };
+    assert_eq!(
+        w.index.apply_enrichment(&[learned], Timestamp(1)).unwrap(),
+        1
+    );
     w.file("Schermafbeelding.png", "12");
     w.scan();
-    assert!(
-        w.indexed()["Schermafbeelding.png"].is_screenshot,
-        "the enricher's call stays"
-    );
+    let shot = &w.indexed()["Schermafbeelding.png"];
+    assert!(shot.is_screenshot, "the enricher's call stays");
+    assert_eq!(shot.category, TypeCategory::Screenshots);
 }
 
 #[test]
