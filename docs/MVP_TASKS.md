@@ -244,6 +244,12 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Setting the screenshot flag recomputes the type category (`TypeCategory::of`).
     - EXIF and dimensions are read.
     - Everything runs as low-priority batched jobs.
+  - **Notes:** ports `DownloadOrigins` and `Screenshots` (plural, like `Volumes` and `Placeholders`). macOS reads the `com.apple.metadata:` xattrs directly, so Spotlight can be off; verified on real downloads and `screencapture` files. After a scan ends Done, the app queues enrich for that Location in slices (a few batches of 256 per job), so scans on a one-job volume never wait long; pause, resume and cancel of scans act on enrich too. A rescan keeps the origin and screenshot flag; a re-enrich never erases a known origin.
+  - **Left for later tasks:**
+    - **K-2.9:** the failure codes `enrich_offline`, `enrich_index_failed` and `enrich_cancelled` are only logged; they need locale keys once shown. `meta_json.taken_at` is in nanoseconds (above 2^53): decode it in Rust before IPC. Enrich progress has no total.
+    - **K-3.x previews:** `apply_enrichment` replaces `meta_json` as a whole. When previews cache duration and page count there (§7.6), merge keys instead of overwriting.
+    - Not yet checked on real systems: `FILE_FLAG_OPEN_NO_RECALL` on SMB shares (if a redirector rejects it, sniffing and EXIF are skipped on that share), Chromium's `HostUrl=about:internet`, a custom Spectacle file-name template, NFD file names on Linux. HEIF EXIF is read through `kamadak-exif`, but no real HEIC file is in the tests.
+    - An enrich pass only follows a scan; there's no enrich at startup without one.
 - [ ] **K-2.8 Last-used signals (+ spike S3)** · M
   - **Done when:**
     - The `LastUsed` adapters work: batched Spotlight on macOS, Recent `.lnk` on Windows, `recently-used.xbel` and KDE on Linux.

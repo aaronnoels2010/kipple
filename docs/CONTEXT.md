@@ -15,9 +15,9 @@ These terms are used consistently in code, docs, UI copy keys and issues. If a t
 | **Protected path** | A path Kipple will never change: system dirs, app internals, Kipple's own data. | **Mark**, which is a user decision |
 | **Index** | The local cache of Items and their metadata (`index.db`). It can be rebuilt by rescanning. | **Journal**, which can't be rebuilt |
 | **Scan** | Walking Locations and updating the Index. | **Enrich** |
-| **Enrich** | Background step that adds slower metadata: last-used, download origin, EXIF, hashes. | |
+| **Enrich** | Background step that adds what the walk doesn't read: download origin, the screenshot flag, the sniffed type of files whose name can't tell, image dimensions and EXIF (and last-used, K-2.8). Hashing is a step of its own. | |
 | **OS metadata** | Files the OS keeps for itself next to the user's: `._*` AppleDouble companions, `.DS_Store`, `Thumbs.db`, `desktop.ini`. Indexed, but left out of counts; a folder holding only these counts as empty. | **Hidden** files, which are the user's own |
-| **Job** | One unit of background work (a scan, an enrich batch, hashing, thumbnails) run by the **job scheduler** in priority order. It can be paused, resumed and cancelled, and reports progress. | The **in-app scheduler** of ADR-0006, which starts scans and rules at set times |
+| **Job** | One unit of background work (a scan, a slice of a Location's enriching, hashing, thumbnails) run by the **job scheduler** in priority order. It can be paused, resumed and cancelled, and reports progress. | The **in-app scheduler** of ADR-0006, which starts scans and rules at set times |
 | **Last used** | The best estimate of when the user last opened an Item, combined from several **signals** (Spotlight, Recent Items, `recently-used.xbel`, atime, Kipple's own opens). It always records which signal it came from. | `modified_at` |
 | **Type category** | A type bucket (Images, Screenshots, Installers…). Every Item has exactly one. | **Facet** |
 | **Facet** | Any other grouping an Item can have several of: status, origin, tags, cleanup reasons. Together with the type category these make up the plan's "categories". | |

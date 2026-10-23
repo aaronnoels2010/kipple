@@ -203,7 +203,9 @@ candidate(item_id, detector, confidence, reason_code, reason_params_json,
 duplicate_group(id, size, full_hash, suggested_keep_item_id)
 ```
 
-Indexes cover `(location_id, parent_path)`, `(type_category)`, `(size)`, `(full_hash)`, `(last_used_at)` and `(modified_at)`. Lists use keyset pagination.
+Indexes cover `(location_id, parent_path)`, `(type_category)`, `(size)`, `(full_hash)`, `(last_used_at)` and `(modified_at)`, plus a partial index of the files and bundles still to enrich (`item_to_enrich`, `WHERE enriched_at IS NULL`), which is near-empty once the enrichers have caught up. Lists use keyset pagination.
+
+`meta_json` holds what was read from an image: `width`, `height`, `taken_at` (nanoseconds, like every time column; above 2^53, so parse it in Rust, not with `JSON.parse`), `camera_make`, `camera_model` and `orientation` (EXIF 1–8). Only known keys are written.
 
 ### 6.2 state.db (key tables)
 
@@ -250,7 +252,7 @@ sequenceDiagram
     W->>I: diff (size, mtime, ctime, file_id) → changed set
     W->>I: upsert changed items + FTS (batched transactions)
     J->>J: enqueue enrich jobs (low priority)
-    J->>P: last_used, origin, screenshot flag (batched)
+    J->>P: origin, screenshot flag; sniff type, EXIF (batched; last_used: K-2.8)
     J->>I: hashes ONLY for size collisions (quick → full)
     J->>D: stream items through detectors
     D->>I: replace candidates
@@ -263,12 +265,12 @@ sequenceDiagram
    - **Windows:** enumerate each folder with **`GetFileInformationByHandleEx(FileIdBothDirectoryInfo)`**. It returns file ID, ChangeTime, size and mtime in one bulk call per folder, and in spike S4 it was the fastest strategy (1M files in 3.4 s, versus 9.4 s when opening every file). Fall back to std enumeration (no file ID or ChangeTime) when the call isn't supported (some network shares). Folders are opened in the `\\?\` form, so paths over 260 characters work. On FAT/ExFAT the path is the identity. ✅ Decided in S4 ([report](../spikes/s4-scan-perf/README.md)).
    - **Placeholders:** the walker never opens a file, and the placeholder flag comes from the listing itself (macOS `SF_DATALESS`, Windows recall attributes). Online-only folders are recorded but not listed (that would fetch them from the cloud), and what the index knew about their contents stays. At startup Kipple sets process-wide placeholder behaviour: on **macOS** `setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, OFF)` makes every read of a dataless file fail instead of download. **Windows** has no such switch: `RtlSetProcessPlaceholderCompatibilityMode(PHCM_EXPOSE_PLACEHOLDERS)` only shows cloud files as what they are, and reading one still downloads it, so every reader (sniffing, EXIF, hashing, previews) checks `is_placeholder` first.
    - **OS metadata** (`._*` AppleDouble files from FAT/exFAT, spike S1; `.DS_Store`, `Thumbs.db`, `desktop.ini`) is marked `is_os_metadata`: left out of counts, and a folder holding only such files counts as empty (the `empty_dir` detector, K-5.4).
-3. **Diff per directory** on `(kind, size, mtime, ctime, file_id)` plus the hidden / placeholder / OS-metadata flags; unchanged rows aren't written at all. When the walker enters a folder, it loads only that folder's index rows (`WHERE parent_path = ?`) and compares them. **Never load the whole location into memory:** a whole-tree map costs about 320–400 MB at 1M files (S4). Adding ctime catches tools that preserve mtime but change content (`rsync -t`, archive extraction). When an item changes, what was read from its content is cleared (hashes, mime, EXIF, `enriched_at`: the enrichers look at it again); the last-used signal, the origin and the screenshot flag are kept. What's gone from a listed folder is deleted with everything under it. NTFS may report directory-entry metadata a little late, which is covered by the Validator re-stat-ing every item at apply time.
-4. **Classify** by extension. Use `infer` for unknown or ambiguous extensions. **Placeholders are only `stat`-ed, never opened.**
-5. **Enrich** in the background (low priority, batched): last-used, download origin, EXIF/dimensions, and the **screenshot flag**. Screenshot file names are localised ("Schermafbeelding…"), so the flag isn't based on names alone:
-   - **macOS:** `kMDItemIsScreenCapture`.
-   - **Windows:** the `Pictures\Screenshots` known folder.
-   - **Linux:** known screenshot dirs plus per-locale name patterns for GNOME and KDE.
+3. **Diff per directory** on `(kind, size, mtime, ctime, file_id)` plus the hidden / placeholder / OS-metadata flags; unchanged rows aren't written at all. When the walker enters a folder, it loads only that folder's index rows (`WHERE parent_path = ?`) and compares them. **Never load the whole location into memory:** a whole-tree map costs about 320–400 MB at 1M files (S4). Adding ctime catches tools that preserve mtime but change content (`rsync -t`, archive extraction). When an item changes, what was read from its content is cleared (hashes, mime, EXIF, a sniffed category, `enriched_at`: the enrichers look at it again); the last-used signal, the origin and the screenshot flag are kept. `enriched_at` is also cleared when a placeholder is downloaded, since its content can be read now. What's gone from a listed folder is deleted with everything under it. NTFS may report directory-entry metadata a little late, which is covered by the Validator re-stat-ing every item at apply time.
+4. **Classify** by extension while walking. Files whose name can't tell (no extension, an unknown one, or an ambiguous `.ts` or `.key`) are sniffed with `infer` by the enrichers (step 5): a `.ts` transport stream is a video, otherwise TypeScript; a `.key` that's a zip is a Keynote presentation, otherwise a key file (`Other`). **Placeholders are only `stat`-ed, never opened.**
+5. **Enrich** in the background (`kipple-engine::enrich`, `Enrich` priority): download origin, the **screenshot flag** (which turns an image into a Screenshot), the sniffed type, and dimensions + EXIF for images; last-used comes with K-2.8. A job does a bounded slice of a Location's backlog in batches of 256 and then ends, and the app queues the next slice, so scans never wait behind a long enrich. A batch is stored only where the content is still what was read (a rescan may have changed it meanwhile). A placeholder's or bundle's content is never opened; image metadata is read from the first 1 MiB only. Screenshot file names are localised ("Schermafbeelding…"), so the flag isn't based on names alone:
+   - **macOS:** the `kMDItemIsScreenCapture` attribute, read from the file's `com.apple.metadata:` xattr (no Spotlight needed).
+   - **Windows:** the `Screenshots` known folder (already localised, moved or redirected), resolved once per start.
+   - **Linux:** the Screenshots folders (localised, under the XDG Pictures folder), plus GNOME and Spectacle file names anywhere, in English, Dutch, German, French, Spanish, Italian and Portuguese.
 6. **Hash lazily:** group by size, then compute a quick hash (first + last 64 KiB) for groups larger than 1, then a full BLAKE3 hash where quick hashes collide.
 7. **Detect:** detectors **stream** over the index (SQL-backed iterators) and never load the full index into memory.
 
@@ -431,13 +433,13 @@ v1 adds `similar_image`, `version_cluster`, `broken_link`, `dev_junk` and `os_ju
 | `Trash` (+ `supports(volume)`, restore) | `trashItemAtURL:resultingItemURL:`. `supports` = `MNT_LOCAL` && !`MNT_RDONLY` && `URLForDirectory(NSTrashDirectory, appropriateForURL:, create: YES)` succeeds (S9) | `supports` = `DRIVE_FIXED` && `SHQueryRecycleBinW` is `S_OK` (fixed NTFS/FAT32/exFAT all have one). **Network drives: trash = silent permanent delete (S9)**. Restore via `trash` crate | freedesktop spec, incl. `$topdir/.Trash-$uid`. `supports` = not network fs && not read-only && (same device as home Trash or topdir usable). Restore via `trash` crate |
 | `TrashUsage` | Unavailable without Full Disk Access; otherwise `~/.Trash` size | `SHQueryRecycleBin` | Trash dir size |
 | `LastUsed` | Spotlight `kMDItemLastUsedDate` (batched) | Recent Items `.lnk` targets | `recently-used.xbel` (+ KDE RecentDocuments) |
-| `DownloadOrigin` | `kMDItemWhereFroms` xattr | `Zone.Identifier` ADS (`HostUrl`) | `user.xdg.origin.url` xattr (Chromium-based) |
-| `Placeholder` | dataless flag / ubiquitous item status | `RECALL_ON_DATA_ACCESS` / `RECALL_ON_OPEN` / `OFFLINE` | n/a (FUSE/rclone treated as network) |
+| `DownloadOrigins` | `kMDItemWhereFroms` xattr (first URL; `blob:` unwrapped) | `Zone.Identifier` ADS (`HostUrl`), opened without recalling a cloud file | `user.xdg.origin.url` xattr (Chromium-based browsers, `curl`/`wget --xattr`; Firefox writes none) |
+| `Placeholders` | dataless flag / ubiquitous item status | `RECALL_ON_DATA_ACCESS` / `RECALL_ON_OPEN` / `OFFLINE` | n/a (FUSE/rclone treated as network) |
 | `SyncRoots` | iCloud Drive, File Provider domains | OneDrive/Dropbox sync roots (incl. Known Folder Move) | n/a |
 | `ProtectedPaths` & `Bundles` | `/System`, `/Library`, `/usr`, `/private`, `/opt/homebrew`, `~/Library`, bundle contents | `C:\Windows`, `Program Files*`, `ProgramData`, `AppData` | `/usr`, `/etc`, `/proc`, `/sys`, `/boot`, `~/.config`, `~/.local/share` |
-| `Volume` (kind, ID, caps, online) | `statfs` + volume UUID | `GetVolumeInformation`, drive type, serial | `statfs` + `/proc/self/mountinfo` |
+| `Volumes` (kind, ID, caps, online) | `statfs` + volume UUID | `GetVolumeInformation`, drive type, serial | `statfs` + `/proc/self/mountinfo` |
 | `InstalledApps` | `/Applications` + `~/Applications` bundle IDs | Uninstall registry keys (HKLM + HKCU) | dpkg/rpm DB, flatpak, `.desktop` files |
-| `Screenshots` | `kMDItemIsScreenCapture` | `Pictures\Screenshots` known folder | known dirs + localised patterns |
+| `Screenshots` | `kMDItemIsScreenCapture` xattr | `Screenshots` known folder | Screenshots folders + localised GNOME/Spectacle names |
 | `LockInfo` | n/a | Restart Manager (`RmGetList`) | n/a |
 | `Permissions` (status + guide) | TCC folder prompts, Full Disk Access detection, deep link to System Settings | Controlled Folder Access detection | n/a |
 | `Thumbnails` | QuickLookThumbnailing | `IShellItemImageFactory` | freedesktop thumbnailers |
