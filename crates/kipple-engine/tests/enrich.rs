@@ -820,6 +820,91 @@ fn large_images_get_their_metadata_from_the_start_of_the_file() {
     }
 }
 
+/// A TIFF of `width` × `height` grey pixels in one strip, with its only IFD after them, as
+/// libtiff writes by default (GIMP, ImageMagick, scanners), in either byte order. The width is a
+/// LONG and the height a SHORT: both types are allowed.
+fn tiff_with_the_ifd_last(width: u32, height: u16, orientation: u16, big_endian: bool) -> Vec<u8> {
+    let u16_bytes = |n: u16| {
+        if big_endian {
+            n.to_be_bytes()
+        } else {
+            n.to_le_bytes()
+        }
+    };
+    let u32_bytes = |n: u32| {
+        if big_endian {
+            n.to_be_bytes()
+        } else {
+            n.to_le_bytes()
+        }
+    };
+    let pixels = width * u32::from(height);
+    // The IFD starts on a word boundary.
+    let ifd_at = 8 + pixels + pixels % 2;
+    let mut out = if big_endian {
+        b"MM\0*".to_vec()
+    } else {
+        b"II*\0".to_vec()
+    };
+    out.extend_from_slice(&u32_bytes(ifd_at));
+    out.resize(usize::try_from(ifd_at).unwrap(), 0x80);
+    // (tag, type, value): SHORT is 3, LONG 4; a SHORT sits in the first two bytes of the four.
+    let short = |n: u16| {
+        let [a, b] = u16_bytes(n);
+        [a, b, 0, 0]
+    };
+    let entries = [
+        (256_u16, 4_u16, u32_bytes(width)),
+        (257, 3, short(height)),
+        (258, 3, short(8)),
+        (259, 3, short(1)),
+        (262, 3, short(1)),
+        (273, 4, u32_bytes(8)),
+        (274, 3, short(orientation)),
+        (277, 3, short(1)),
+        (278, 4, u32_bytes(u32::from(height))),
+        (279, 4, u32_bytes(pixels)),
+    ];
+    out.extend_from_slice(&u16_bytes(u16::try_from(entries.len()).unwrap()));
+    for (tag, kind, value) in entries {
+        out.extend_from_slice(&u16_bytes(tag));
+        out.extend_from_slice(&u16_bytes(kind));
+        out.extend_from_slice(&u32_bytes(1));
+        out.extend_from_slice(&value);
+    }
+    out.extend_from_slice(&u32_bytes(0)); // no next IFD
+    out
+}
+
+#[test]
+fn large_tiffs_with_their_ifd_after_the_pixels_get_their_size() {
+    let mut w = world();
+    w.file("scan.tif", tiff_with_the_ifd_last(1200, 1000, 6, false));
+    w.file("print.tiff", tiff_with_the_ifd_last(1201, 999, 1, true));
+    // RAW: the IFD it points to is a preview.
+    w.file("IMG_0001.dng", tiff_with_the_ifd_last(1200, 1000, 8, false));
+    for name in ["scan.tif", "print.tiff", "IMG_0001.dng"] {
+        let size = fs::metadata(w.root.join(name)).unwrap().len();
+        assert!(size > 1 << 20, "{name} is larger than what's read: {size}");
+    }
+    w.scan();
+    w.enrich();
+    let cases = [
+        (
+            "scan.tif",
+            r#"{"width":1200,"height":1000,"orientation":6}"#,
+        ),
+        (
+            "print.tiff",
+            r#"{"width":1201,"height":999,"orientation":1}"#,
+        ),
+        ("IMG_0001.dng", r#"{"orientation":8}"#),
+    ];
+    for (name, meta) in cases {
+        assert_eq!(w.stored(name).meta.as_deref(), Some(meta), "{name}");
+    }
+}
+
 #[test]
 fn raw_files_get_their_size_from_exif_not_from_the_preview() {
     use exif::Tag;

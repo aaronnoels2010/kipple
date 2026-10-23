@@ -100,7 +100,7 @@ struct Book {
     enriching: BTreeMap<JobId, Enriching>,
     /// Jobs asked to stop: no enrich run follows them, even one that got to the end first.
     stopping: BTreeSet<JobId>,
-    /// Between pause and resume: an enrich run queued meanwhile is paused too.
+    /// Between pause and resume: a scan or enrich run queued meanwhile is paused too.
     paused: bool,
 }
 
@@ -301,20 +301,18 @@ impl Shared {
         }
     }
 
-    /// Queues an enrich run of `location` from `from`, on its volume like a scan; paused if
-    /// the scans are.
+    /// Queues an enrich run of `location` from `from`, on its volume like a scan; submitted
+    /// paused if the scans are, so it doesn't start before the resume.
     fn queue_enrich(self: &Arc<Self>, book: &mut Book, location: Location, from: Option<ItemId>) {
         let Some(scheduler) = self.scheduler.get().and_then(Weak::upgrade) else {
             return; // shutting down
         };
         let spec = JobSpec::new(Priority::Enrich)
-            .on_volume(location.volume.clone(), location.caps.storage);
+            .on_volume(location.volume.clone(), location.caps.storage)
+            .paused(book.paused);
         let shared = Arc::clone(self);
         let job_location = location.clone();
         let job = scheduler.submit(spec, move |ctx| shared.run_enrich(&job_location, from, ctx));
-        if book.paused {
-            scheduler.pause(job);
-        }
         book.enriching.insert(
             job,
             Enriching {
@@ -398,7 +396,8 @@ impl Scans {
         Ok(Self { shared, scheduler })
     }
 
-    /// Queues a scan of each enabled, online Location that isn't being scanned already.
+    /// Queues a scan of each enabled, online Location that isn't being scanned already; paused
+    /// until [`Scans::resume`] if the scans are.
     pub fn start(&self, locations: &[Location]) {
         let mut book = self.shared.book();
         for location in locations.iter().filter(|l| l.enabled && l.online) {
@@ -412,7 +411,8 @@ impl Scans {
             book.scans
                 .insert(location.id, ScanView::queued(location.id));
             let spec = JobSpec::new(Priority::Scan)
-                .on_volume(location.volume.clone(), location.caps.storage);
+                .on_volume(location.volume.clone(), location.caps.storage)
+                .paused(book.paused);
             let shared = Arc::clone(&self.shared);
             let job_location = location.clone();
             let job = self
@@ -422,7 +422,7 @@ impl Scans {
         }
     }
 
-    /// Pauses every scan and enrich run, and the enrich runs queued until [`Scans::resume`].
+    /// Pauses every scan and enrich run, and the ones queued until [`Scans::resume`].
     /// Under the book's lock, so a run queued meanwhile is either paused here or sees the flag.
     pub fn pause(&self) {
         let mut book = self.shared.book();
@@ -921,6 +921,35 @@ mod tests {
         assert_eq!(to_enrich(&w), 1, "a.txt waits");
         w.scans.resume();
         wait_for("the run after it", || to_enrich(&w) == 0);
+        assert!(w.scans.wait(WAIT));
+    }
+
+    #[test]
+    fn a_scan_started_while_paused_waits_for_resume() {
+        let w = world();
+        w.scans.pause();
+        w.scans.start(std::slice::from_ref(&w.location));
+        let job = *w.scans.shared.book().jobs.keys().next().unwrap();
+        // Paused as it's submitted: never started before the resume.
+        assert_eq!(
+            w.scans
+                .scheduler
+                .status()
+                .iter()
+                .find(|j| j.id == job)
+                .map(|j| j.state),
+            Some(JobState::Paused)
+        );
+        wait_for_phase(&w, ScanPhase::Paused);
+        assert!(!w.scans.wait(Duration::from_millis(20)), "still there");
+        let index = IndexDb::open(&w.index).unwrap();
+        assert!(
+            index.items_in(LocationId(3), &w.root).unwrap().is_empty(),
+            "nothing scanned"
+        );
+        w.scans.resume();
+        wait_for_phase(&w, ScanPhase::Done);
+        wait_for("the enrich run", || to_enrich(&w) == 0);
         assert!(w.scans.wait(WAIT));
     }
 

@@ -61,6 +61,9 @@ pub struct JobSpec {
     pub priority: Priority,
     /// The volume the job reads from, if any: it takes one of that volume's slots.
     pub volume: Option<(VolumeId, StorageKind)>,
+    /// Submitted paused: it waits as [`JobState::Paused`] until resumed, as if paused while
+    /// queued, and is never started before.
+    pub paused: bool,
 }
 
 impl JobSpec {
@@ -68,6 +71,7 @@ impl JobSpec {
         Self {
             priority,
             volume: None,
+            paused: false,
         }
     }
 
@@ -76,6 +80,10 @@ impl JobSpec {
             volume: Some((id, storage)),
             ..self
         }
+    }
+
+    pub fn paused(self, paused: bool) -> Self {
+        Self { paused, ..self }
     }
 }
 
@@ -328,6 +336,9 @@ impl Scheduler {
         let mut state = self.shared.lock();
         state.next_id += 1;
         let id = JobId(state.next_id);
+        let paused = spec.paused;
+        let flags = Arc::new(Flags::default());
+        flags.set_paused(paused);
         state.jobs.insert(
             id,
             Job {
@@ -335,13 +346,17 @@ impl Scheduler {
                 state: JobState::Queued,
                 started: false,
                 work: Some(Box::new(work)),
-                flags: Arc::default(),
+                flags,
                 holds_slot: false,
                 progress: None,
                 progress_new: false,
             },
         );
         state.outbox.push(JobEvent::State(id, JobState::Queued));
+        // Under the same lock as the pump: it can't be started before it's paused.
+        if paused {
+            state.set_state(id, JobState::Paused);
+        }
         self.shared.pump(&mut state);
         id
     }
@@ -1011,6 +1026,45 @@ mod tests {
         assert!(s.resume(held));
         assert!(s.wait_idle(WAIT));
         assert_eq!(*log.lock().unwrap(), ["other", "held"]);
+    }
+
+    #[test]
+    fn a_job_submitted_paused_never_runs_until_resumed() {
+        let (s, events) = scheduler(1);
+        let log = Arc::default();
+        let held = s.submit(
+            JobSpec::new(Priority::Scan).paused(true),
+            logs(&log, "held"),
+        );
+        assert_eq!(state_of(&s, held), Some(JobState::Paused));
+        // The slot is free: a job submitted after it runs, and it doesn't.
+        let other = s.submit(JobSpec::new(Priority::Hash), logs(&log, "other"));
+        wait_for("other to run", || state_of(&s, other).is_none());
+        assert_eq!(*log.lock().unwrap(), ["other"]);
+        assert_eq!(state_of(&s, held), Some(JobState::Paused));
+
+        assert!(s.resume(held));
+        assert!(s.wait_idle(WAIT));
+        assert_eq!(*log.lock().unwrap(), ["other", "held"]);
+        wait_for("held's end", || finished(&events, held).is_some());
+        let states: Vec<_> = events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                JobEvent::State(id, state) if *id == held => Some(*state),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            states,
+            [
+                JobState::Queued,
+                JobState::Paused,
+                JobState::Queued,
+                JobState::Running
+            ]
+        );
     }
 
     #[test]

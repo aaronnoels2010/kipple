@@ -12,7 +12,7 @@
 //! turn (ARCHITECTURE §7.1).
 
 use std::fs::File;
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use exif::{Exif, In, Tag, Value};
@@ -98,8 +98,13 @@ pub const SLICE: usize = 4 * BATCH;
 const SNIFF_BYTES: u64 = 8 * 1024;
 /// Read of an image for its EXIF and dimensions, which cameras and encoders write near the
 /// start. Neither reader stops by itself: `image` reads a whole JPEG before its headers, and
-/// `kamadak-exif` reads to the end of a file that has no EXIF.
+/// `kamadak-exif` reads to the end of a file that has no EXIF. EXIF that a WebP, PNG or HEIF
+/// file keeps after more image data than this isn't read; a TIFF's first IFD is (see
+/// [`trailing_ifd0`]).
 const IMAGE_HEAD_BYTES: u64 = 1024 * 1024;
+/// The most entries read from a TIFF's first IFD past the head: 3 KiB. Entries are sorted by
+/// tag, and the ones wanted (256, 257, 274) come early.
+const IFD_ENTRIES: usize = 256;
 
 /// Enriches one slice of `location`'s Items that changed since they were last enriched (or never
 /// were): up to [`SLICE`] of them, after `from`. A pass starts at `None` and goes on from each
@@ -276,9 +281,28 @@ fn is_raw(name: &str) -> bool {
 /// `image` can't read (HEIC), and all there is for a `raw` file: the decoder would find its
 /// preview.
 fn media_of(path: &Path, raw: bool) -> MediaMeta {
-    let Ok(head) = open(path).and_then(head) else {
+    let Ok(mut file) = open(path) else {
         return MediaMeta::default();
     };
+    let Ok(head) = head(&mut file) else {
+        return MediaMeta::default();
+    };
+    // A TIFF whose first IFD is past the head, where neither reader looks.
+    if let Some(ifd0) = trailing_ifd0(&head, &mut file) {
+        // A RAW's first IFD is its preview, and its EXIF (with the size) isn't read here.
+        let (width, height) = if raw {
+            None
+        } else {
+            ifd0.width.zip(ifd0.height)
+        }
+        .unzip();
+        return MediaMeta {
+            width,
+            height,
+            orientation: ifd0.orientation.filter(|n| (1..=8).contains(n)),
+            ..MediaMeta::default()
+        };
+    }
     // A head cut off mid-image is fine: the decoders read only the headers in it.
     let decoded = (!raw)
         .then(|| {
@@ -330,6 +354,71 @@ fn read_exif(head: Vec<u8>) -> Option<Exif> {
     };
     // Damaged fields are skipped: keep the ones that could be read.
     read.or_else(|e| e.distill_partial_result(|_| {})).ok()
+}
+
+/// What a TIFF's first IFD says, when it lies past the `head`: libtiff writes it after the
+/// pixels by default (GIMP, ImageMagick, scanners). One more read of [`IFD_ENTRIES`] entries at
+/// most, for the size and orientation; the EXIF IFD it points to (camera, date) isn't read.
+/// `None` if `head` isn't a TIFF, or the IFD is in it.
+fn trailing_ifd0(head: &[u8], file: &mut (impl Read + Seek)) -> Option<Ifd0> {
+    let big_endian = match head.get(..4)? {
+        b"MM\0*" => true,
+        b"II*\0" => false,
+        _ => return None,
+    };
+    let u16_at = |bytes: &[u8], at: usize| {
+        let b = bytes.get(at..at + 2)?.try_into().ok()?;
+        Some(if big_endian {
+            u16::from_be_bytes(b)
+        } else {
+            u16::from_le_bytes(b)
+        })
+    };
+    let u32_at = |bytes: &[u8], at: usize| {
+        let b = bytes.get(at..at + 4)?.try_into().ok()?;
+        Some(if big_endian {
+            u32::from_be_bytes(b)
+        } else {
+            u32::from_le_bytes(b)
+        })
+    };
+    let offset = u32_at(head, 4)?;
+    let at = usize::try_from(offset).ok()?;
+    if let Some(count) = u16_at(head, at)
+        && at.saturating_add(2 + 12 * usize::from(count)) <= head.len()
+    {
+        return None;
+    }
+    file.seek(SeekFrom::Start(u64::from(offset))).ok()?;
+    let mut ifd = Vec::new();
+    file.take(2 + 12 * IFD_ENTRIES as u64)
+        .read_to_end(&mut ifd)
+        .ok()?;
+    let count = usize::from(u16_at(&ifd, 0)?);
+    let mut found = Ifd0::default();
+    for entry in ifd[2..].as_chunks::<12>().0.iter().take(count) {
+        // SHORT (3) or LONG (4), one value, in the entry itself.
+        let value = match u16_at(entry, 2)? {
+            3 => u32::from(u16_at(entry, 8)?),
+            4 => u32_at(entry, 8)?,
+            _ => continue,
+        };
+        match u16_at(entry, 0)? {
+            256 => found.width = Some(value),
+            257 => found.height = Some(value),
+            274 => found.orientation = u16::try_from(value).ok(),
+            _ => {}
+        }
+    }
+    Some(found)
+}
+
+/// The tags read from a TIFF's first IFD.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Ifd0 {
+    width: Option<u32>,
+    height: Option<u32>,
+    orientation: Option<u16>,
 }
 
 fn field(exif: &Exif, tag: Tag) -> Option<&Value> {

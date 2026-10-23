@@ -230,7 +230,10 @@ impl IndexDb {
     /// Inserts or updates Items by (location, path) in one transaction, returning their IDs in
     /// order. An update keeps the row ID, the last-used signal, the download origin and the
     /// screenshot flag: the walker knows none of these, so it can set the flag but never clears
-    /// it ([`IndexDb::apply_enrichment`] does). What was read from the content (hashes,
+    /// it ([`IndexDb::apply_enrichment`] does). The origin is kept only while the file ID is the
+    /// same (or both have none, as on FAT): another file saved at the path loses it, and so does
+    /// one rewritten by an atomic save (a new file ID), since a wrong origin is worse than a
+    /// missing one, which the enrichers may find again. What was read from the content (hashes,
     /// mime, EXIF, a sniffed category, `enriched_at`) is kept only while the file ID, size, mtime
     /// and ctime are unchanged: otherwise it's cleared, which tells the enrichers to look again.
     /// So is `enriched_at` when a placeholder is downloaded: its content can be read now. Until
@@ -320,6 +323,7 @@ impl IndexDb {
                    is_screenshot = item.is_screenshot OR excluded.is_screenshot, \
                    is_hidden = excluded.is_hidden, is_placeholder = excluded.is_placeholder, \
                    is_os_metadata = excluded.is_os_metadata, \
+                   origin_url = iif(item.file_id IS excluded.file_id, item.origin_url, NULL), \
                    quick_hash = coalesce(excluded.quick_hash, iif({unchanged}, item.quick_hash, NULL)), \
                    full_hash = coalesce(excluded.full_hash, iif({unchanged}, item.full_hash, NULL)), \
                    hashed_at = iif({unchanged}, item.hashed_at, NULL), \
@@ -970,7 +974,9 @@ mod tests {
         db.upsert_items(&[item("a.iso", 10)], Timestamp(3)).unwrap();
         assert_eq!(derived(&db).0, 5, "unchanged: the enrichment stays");
         // Rescanned with a new size: the old hash no longer describes the file.
-        db.upsert_items(&[item("a.iso", 11)], Timestamp(3)).unwrap();
+        let mut grown = item("a.iso", 11);
+        grown.identity.file = hashed.identity.file;
+        db.upsert_items(&[grown], Timestamp(3)).unwrap();
         assert_eq!(db.item(id).unwrap().unwrap().content.hash, None);
         assert_eq!(
             derived(&db),
@@ -1346,15 +1352,33 @@ mod tests {
         };
         let id = first.item;
         db.apply_enrichment(&[first], Timestamp(9)).unwrap();
-        // Rewritten by a save that dropped the attribute: enriched again, and no origin found.
-        db.upsert_items(&[item("setup.zip", 2)], Timestamp(10))
-            .unwrap();
+        // Rewritten in place by a save that dropped the attribute: the same file, new content.
+        let mut rewritten = item("setup.zip", 2);
+        rewritten.identity.file = item("setup.zip", 1).identity.file;
+        db.upsert_items(&[rewritten], Timestamp(10)).unwrap();
+        assert_eq!(enriched(&db, id).5, None, "enriched again");
         let again = enrichment(&stored(&db, "setup.zip"));
         assert_eq!(db.apply_enrichment(&[again], Timestamp(11)).unwrap(), 1);
         assert_eq!(
             enriched(&db, id).3.as_deref(),
             Some("https://example.org/setup.zip")
         );
+    }
+
+    #[test]
+    fn another_file_saved_at_the_same_path_does_not_inherit_the_origin() {
+        let mut db = db_with(&[item("setup.zip", 1)]);
+        let first = Enrichment {
+            origin_url: Some("https://example.org/setup.zip".into()),
+            ..enrichment(&stored(&db, "setup.zip"))
+        };
+        let id = first.item;
+        db.apply_enrichment(&[first], Timestamp(9)).unwrap();
+        // A new file ID: replaced, by a copy, a move or an atomic save.
+        db.upsert_items(&[item("setup.zip", 2)], Timestamp(10))
+            .unwrap();
+        assert_eq!(stored(&db, "setup.zip").id, Some(id), "the same row");
+        assert_eq!(enriched(&db, id).3, None);
     }
 
     #[test]
