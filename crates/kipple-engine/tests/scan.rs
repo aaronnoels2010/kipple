@@ -184,6 +184,11 @@ fn a_rescan_without_changes_writes_nothing() {
     w.file("a.pdf", "x");
     w.file("Sub/b.pdf", "y");
     w.scan();
+    // NTFS may update a folder's entry in its parent's listing late (ARCHITECTURE §7.1 step 3),
+    // even after the first scan: one write then, which is what a rescan is for.
+    if cfg!(windows) {
+        w.scan();
+    }
     let before = w.indexed();
     let again = w.scan();
     assert_eq!((again.added, again.updated, again.removed), (0, 0, 0));
