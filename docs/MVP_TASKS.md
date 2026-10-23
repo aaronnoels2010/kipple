@@ -236,7 +236,7 @@ Spikes are **throwaway** prototypes (`spikes/` folder, not shipped). Each one en
     - Windows: `FileIdBothDirectoryInfo` gives 64-bit file IDs; ReFS uses 128-bit ones (`FileIdExtdDirectoryInfo`). The plain fallback has no file IDs or ChangeTime. Not yet checked: the Google Drive virtual drive (G:), and filtering sync roots by the user's SID.
     - Linux: cache `/proc/self/mountinfo` per scan; btrfs subvolumes share a UUID but can't rename across each other.
     - macOS bundles are still recognised by name only (`.key` and `.photoslibrary` have no `Contents/Info.plist` to confirm them by). Bundles are stored with size 0 (their contents aren't walked).
-- [ ] **K-2.7 Enrichers** · M
+- [x] **K-2.7 Enrichers** · M
   - **Done when:**
     - Download origin is read on all three OSes.
     - The screenshot flag is set on all three OSes, including **localised names**.
