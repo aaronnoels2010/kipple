@@ -158,8 +158,10 @@ impl TypeCategory {
             | "application/x-cpio"
             | "application/x-unix-archive"
             | "application/vnd.ms-cab-compressed" => Self::Archives,
+            // A Windows program or library (`.dll`, `.sys`) looks the same: only `.exe` and `.msi`
+            // say installer, and those are known extensions that are never sniffed.
+            "application/vnd.microsoft.portable-executable" => return None,
             "application/x-apple-diskimage"
-            | "application/vnd.microsoft.portable-executable"
             | "application/vnd.debian.binary-package"
             | "application/x-rpm" => Self::Installers,
             "application/epub+zip" | "application/x-mobipocket-ebook" => Self::Ebooks,
@@ -396,10 +398,7 @@ mod tests {
             ("application/zip", Some(Archives)),
             ("application/gzip", Some(Archives)),
             ("application/x-apple-diskimage", Some(Installers)),
-            (
-                "application/vnd.microsoft.portable-executable",
-                Some(Installers),
-            ),
+            ("application/vnd.microsoft.portable-executable", None),
             (
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 Some(Documents),
@@ -443,6 +442,7 @@ mod tests {
             (file, "server.key", Mime("application/x-x509-ca-cert"), false, Other, "a DER key file"),
             (file, "Talk.key", NotRead, false, Presentations, "not read: the extension's guess"),
             (file, "report.pdf", Mime("application/zip"), false, Pdfs, "a known extension isn't sniffed"),
+            (file, "System.Data.dll", Mime("application/vnd.microsoft.portable-executable"), false, Other, "a library, not an installer"),
             (file, "Shot.png", NotRead, true, Screenshots, "like `of`"),
             (ItemKind::Bundle, "Talk.key", Mime("application/zip"), false, Presentations, "bundles aren't sniffed"),
             (ItemKind::Dir, "data", Mime("image/png"), false, Other, "folders aren't sniffed"),
