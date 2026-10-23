@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Scans (K-2.6): the `scan_*` commands and the `ScanProgress` event. Each scan is a job on the
 //! scheduler (kipple-engine::jobs) with its own index.db connection, so browsing and location
-//! changes go on while it runs.
+//! changes go on while it runs. A scan that's done is followed by an enrich run of its Location
+//! (K-2.7), a low-priority job the UI doesn't see; the scan controls act on it too.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
 use kipple_core::location::{Location, LocationId};
+use kipple_engine::enrich::{EnrichError, EnrichPorts, enrich};
 use kipple_engine::jobs::{
     JobContext, JobError, JobEvent, JobId, JobSpec, JobState, Outcome, Priority, Scheduler,
 };
 use kipple_engine::scan::{ScanError, ScanOptions, ScanPorts, ScanSummary, scan, walker_threads};
 use kipple_index::IndexDb;
-use kipple_platform::{Directories, NativeDirectories, NativeVolumes, ProtectedPaths, Volumes};
+use kipple_platform::{
+    Directories, DownloadOrigins, NativeDirectories, NativeDownloadOrigins, NativePlaceholders,
+    NativeScreenshots, NativeVolumes, Placeholders, ProtectedPaths, Screenshots, Volumes,
+};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
@@ -23,8 +28,8 @@ use tauri_specta::Event;
 use crate::ipc::Coded;
 use crate::locations::{LocationsState, now};
 
-/// Scans running at once, across volumes (each volume has its own, lower limit).
-const MAX_SCANS: usize = 4;
+/// Scans and enrich runs at once, across volumes (each volume has its own, lower limit).
+const MAX_JOBS: usize = 4;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
@@ -83,16 +88,80 @@ pub struct ScanProgress {
     pub scans: Vec<ScanView>,
 }
 
-/// Which job scans which Location, and every Location's latest scan. Locked by the scheduler's
-/// event sink too: holding it across `submit` means no event about a job is handled before the
-/// job is in here.
+/// Which job scans or enriches which Location, and every Location's latest scan. Locked by the
+/// scheduler's event sink too: holding it across `submit` means no event about a job is handled
+/// before the job is in here.
 #[derive(Debug, Default)]
 struct Book {
-    jobs: BTreeMap<JobId, LocationId>,
+    jobs: BTreeMap<JobId, Location>,
     scans: BTreeMap<LocationId, ScanView>,
+    enriching: BTreeMap<JobId, Enriching>,
+    /// Jobs asked to stop: no enrich run follows them, even one that got to the end first.
+    stopping: BTreeSet<JobId>,
+}
+
+/// An enrich run, queued or running. One per Location at most: a scan that's done while it runs
+/// asks for another after it (`again`), since the run may have paged past what changed.
+#[derive(Debug)]
+struct Enriching {
+    location: Location,
+    started: bool,
+    again: bool,
 }
 
 impl Book {
+    /// The Location to enrich after `event`, if any: a scan's, once it's done (unless a run for
+    /// it is still queued: that one sees the changes too), or again after a run, when asked.
+    /// Call before [`Book::apply`], which forgets finished jobs.
+    fn enrich_after(&mut self, event: &JobEvent) -> Option<Location> {
+        match event {
+            JobEvent::State(job, JobState::Running) => {
+                if let Some(run) = self.enriching.get_mut(job) {
+                    run.started = true;
+                }
+                None
+            }
+            JobEvent::Finished(job, outcome) => {
+                let stopped = self.stopping.remove(job);
+                if *outcome != Outcome::Done || stopped {
+                    self.enriching.remove(job);
+                    return None;
+                }
+                if let Some(run) = self.enriching.remove(job) {
+                    let known = self.scans.contains_key(&run.location.id);
+                    return (run.again && known).then_some(run.location);
+                }
+                let location = self.jobs.get(job)?;
+                match self
+                    .enriching
+                    .values_mut()
+                    .find(|run| run.location.id == location.id)
+                {
+                    Some(run) => {
+                        run.again |= run.started;
+                        None
+                    }
+                    None => Some(location.clone()),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Every scan and enrich job, or only `location`'s.
+    fn job_ids(&self, location: Option<LocationId>) -> Vec<JobId> {
+        let scans = self.jobs.iter().map(|(job, l)| (*job, l.id));
+        let runs = self
+            .enriching
+            .iter()
+            .map(|(job, run)| (*job, run.location.id));
+        scans
+            .chain(runs)
+            .filter(|(_, l)| location.is_none_or(|id| *l == id))
+            .map(|(job, _)| job)
+            .collect()
+    }
+
     /// Applies a scheduler event; returns the scans it changed.
     fn apply(&mut self, event: JobEvent) -> Vec<ScanView> {
         match event {
@@ -130,7 +199,7 @@ impl Book {
 
     /// Changes the scan `job` is for, if it's still known; returns it as changed.
     fn update(&mut self, job: JobId, change: impl FnOnce(&mut ScanView)) -> Option<ScanView> {
-        let view = self.scans.get_mut(self.jobs.get(&job)?)?;
+        let view = self.scans.get_mut(&self.jobs.get(&job)?.id)?;
         change(view);
         Some(view.clone())
     }
@@ -141,7 +210,13 @@ struct Shared {
     protected: ProtectedPaths,
     volumes: Arc<dyn Volumes>,
     directories: Arc<dyn Directories>,
+    placeholders: Arc<dyn Placeholders>,
+    origins: Arc<dyn DownloadOrigins>,
+    screenshots: Arc<dyn Screenshots>,
     book: Mutex<Book>,
+    /// For the event sink, which queues enrich runs: a `Weak`, since the scheduler owns the
+    /// jobs, which hold this. Set once the scheduler exists.
+    scheduler: OnceLock<Weak<Scheduler>>,
 }
 
 impl Shared {
@@ -178,11 +253,54 @@ impl Shared {
             }
         }
     }
+
+    fn run_enrich(&self, location: &Location, ctx: &JobContext) -> Result<(), JobError> {
+        let mut index = IndexDb::open_for_scan(&self.index).map_err(|e| {
+            tracing::error!(error = %e, "enrich: can't open index.db");
+            EnrichError::Index(e)
+        })?;
+        let ports = EnrichPorts {
+            volumes: self.volumes.as_ref(),
+            placeholders: self.placeholders.as_ref(),
+            origins: self.origins.as_ref(),
+            screenshots: self.screenshots.as_ref(),
+        };
+        match enrich(location, &mut index, &ports, ctx, now()) {
+            Ok(summary) => {
+                tracing::info!(location = location.id.0, ?summary, "enrich done");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::warn!(location = location.id.0, error = %e, "enrich stopped");
+                Err(e.into())
+            }
+        }
+    }
+
+    /// Queues an enrich run of `location`, on its volume like a scan.
+    fn queue_enrich(self: &Arc<Self>, book: &mut Book, location: Location) {
+        let Some(scheduler) = self.scheduler.get().and_then(Weak::upgrade) else {
+            return; // shutting down
+        };
+        let spec = JobSpec::new(Priority::Enrich)
+            .on_volume(location.volume.clone(), location.caps.storage);
+        let shared = Arc::clone(self);
+        let job_location = location.clone();
+        let job = scheduler.submit(spec, move |ctx| shared.run_enrich(&job_location, ctx));
+        book.enriching.insert(
+            job,
+            Enriching {
+                location,
+                started: false,
+                again: false,
+            },
+        );
+    }
 }
 
 pub struct Scans {
     shared: Arc<Shared>,
-    scheduler: Scheduler,
+    scheduler: Arc<Scheduler>,
 }
 
 /// What [`Scans`] needs from its surroundings (the app, or a test).
@@ -191,6 +309,9 @@ pub struct Setup {
     pub protected: ProtectedPaths,
     pub volumes: Arc<dyn Volumes>,
     pub directories: Arc<dyn Directories>,
+    pub placeholders: Arc<dyn Placeholders>,
+    pub origins: Arc<dyn DownloadOrigins>,
+    pub screenshots: Arc<dyn Screenshots>,
     /// Called with the scans that changed, on the scheduler's event thread.
     pub emit: Box<dyn Fn(Vec<ScanView>) + Send>,
 }
@@ -201,11 +322,15 @@ impl Scans {
         app: &AppHandle,
         locations: &LocationsState,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let home = app.path().home_dir()?;
         Ok(Self::new(Setup {
             index: locations.index_path(),
             protected: locations.protected().clone(),
-            volumes: Arc::new(NativeVolumes::new(app.path().home_dir()?)),
+            volumes: Arc::new(NativeVolumes::new(home.clone())),
             directories: Arc::new(NativeDirectories),
+            placeholders: Arc::new(NativePlaceholders),
+            origins: Arc::new(NativeDownloadOrigins),
+            screenshots: Arc::new(NativeScreenshots::new(home)),
             emit: emitter(app),
         })?)
     }
@@ -216,19 +341,30 @@ impl Scans {
             protected: setup.protected,
             volumes: setup.volumes,
             directories: setup.directories,
+            placeholders: setup.placeholders,
+            origins: setup.origins,
+            screenshots: setup.screenshots,
             book: Mutex::default(),
+            scheduler: OnceLock::new(),
         });
         let sink = Arc::downgrade(&shared);
         let emit = setup.emit;
-        let scheduler = Scheduler::new(MAX_SCANS, move |event| {
+        let scheduler = Arc::new(Scheduler::new(MAX_JOBS, move |event| {
             let Some(shared) = sink.upgrade() else {
                 return;
             };
-            let changed = shared.book().apply(event);
+            let mut book = shared.book();
+            let enrich = book.enrich_after(&event);
+            let changed = book.apply(event);
+            if let Some(location) = enrich {
+                shared.queue_enrich(&mut book, location);
+            }
+            drop(book);
             if !changed.is_empty() {
                 emit(changed);
             }
-        })?;
+        })?);
+        let _ = shared.scheduler.set(Arc::downgrade(&scheduler));
         Ok(Self { shared, scheduler })
     }
 
@@ -252,40 +388,35 @@ impl Scans {
             let job = self
                 .scheduler
                 .submit(spec, move |ctx| shared.run(&job_location, ctx));
-            book.jobs.insert(job, location.id);
+            book.jobs.insert(job, location.clone());
         }
     }
 
-    fn jobs(&self, location: Option<LocationId>) -> Vec<JobId> {
-        self.shared
-            .book()
-            .jobs
-            .iter()
-            .filter(|(_, l)| location.is_none_or(|id| **l == id))
-            .map(|(job, _)| *job)
-            .collect()
-    }
-
+    /// Pauses every scan and enrich run.
     pub fn pause(&self) {
-        for job in self.jobs(None) {
+        for job in self.shared.book().job_ids(None) {
             self.scheduler.pause(job);
         }
     }
 
     pub fn resume(&self) {
-        for job in self.jobs(None) {
+        for job in self.shared.book().job_ids(None) {
             self.scheduler.resume(job);
         }
     }
 
-    /// Cancels every scan, or only `location`'s.
+    /// Cancels every scan and enrich run, or only `location`'s. Under the book's lock, so a scan
+    /// finishing meanwhile can't queue an enrich run this misses.
     pub fn cancel(&self, location: Option<LocationId>) {
-        for job in self.jobs(location) {
+        let mut book = self.shared.book();
+        for job in book.job_ids(location) {
+            // Every job here still gets its `Finished` event, which takes it out again.
+            book.stopping.insert(job);
             self.scheduler.cancel(job);
         }
     }
 
-    /// Cancels `location`'s scan and drops it from the status: the Location is going away.
+    /// Cancels `location`'s jobs and drops it from the status: the Location is going away.
     pub fn forget(&self, location: LocationId) {
         self.cancel(Some(location));
         self.shared.book().scans.remove(&location);
@@ -364,8 +495,11 @@ fn emitter(app: &AppHandle) -> Box<dyn Fn(Vec<ScanView>) + Send> {
 mod tests {
     use kipple_core::identity::VolumeId;
     use kipple_core::location::{LocationKind, StorageKind, TrashSupport, VolumeCaps};
-    use kipple_platform::Os;
-    use kipple_platform::fake::FakeVolumes;
+    use kipple_engine::enrich::BATCH;
+    use kipple_platform::fake::{
+        FakeDownloadOrigins, FakePlaceholders, FakeScreenshots, FakeVolumes,
+    };
+    use kipple_platform::{Os, PortResult};
 
     use super::*;
 
@@ -391,14 +525,26 @@ mod tests {
         world_listing_with(Arc::new(NativeDirectories))
     }
 
-    #[allow(clippy::disallowed_methods)] // test fixture
     fn world_listing_with(directories: Arc<dyn Directories>) -> World {
+        world_with(directories, Arc::new(FakeDownloadOrigins::default()), 0)
+    }
+
+    /// Two files and a folder, and `more` files besides.
+    #[allow(clippy::disallowed_methods)] // test fixture
+    fn world_with(
+        directories: Arc<dyn Directories>,
+        origins: Arc<dyn DownloadOrigins>,
+        more: usize,
+    ) -> World {
         let dir = tempfile::tempdir().unwrap();
         let base = kipple_platform::canonical(dir.path()).unwrap();
         let root = base.join("files");
         std::fs::create_dir_all(root.join("Sub")).unwrap();
         std::fs::write(root.join("a.txt"), "1").unwrap();
         std::fs::write(root.join("Sub/b.txt"), "2").unwrap();
+        for i in 0..more {
+            std::fs::write(root.join(format!("more-{i}.txt")), "3").unwrap();
+        }
         let location = Location {
             id: LocationId(3),
             path: root.clone(),
@@ -422,6 +568,9 @@ mod tests {
             protected: ProtectedPaths::for_os(Os::Linux, &base, std::path::Path::new("/"), &[]),
             volumes: Arc::new(FakeVolumes::single("temp", base.clone(), CAPS)),
             directories,
+            placeholders: Arc::new(FakePlaceholders::default()),
+            origins,
+            screenshots: Arc::new(FakeScreenshots::default()),
             emit: Box::new(move |views| sink.lock().unwrap().extend(views)),
         })
         .unwrap();
@@ -558,5 +707,126 @@ mod tests {
         w.scans.forget(LocationId(3));
         assert!(w.scans.status().is_empty());
         assert!(w.scans.wait(WAIT));
+    }
+
+    /// How many of the test Location's Items are still to enrich.
+    fn to_enrich(w: &World) -> usize {
+        IndexDb::open(&w.index)
+            .unwrap()
+            .items_to_enrich(LocationId(3), None, usize::MAX)
+            .unwrap()
+            .len()
+    }
+
+    fn wait_for_phase(w: &World, phase: ScanPhase) {
+        wait_for("the scan's end", || w.scans.status()[0].phase == phase);
+    }
+
+    #[test]
+    fn a_done_scan_is_followed_by_an_enrich_run() {
+        let w = world();
+        w.scans.start(std::slice::from_ref(&w.location));
+        wait_for_phase(&w, ScanPhase::Done);
+        wait_for("the enrich run", || to_enrich(&w) == 0);
+        assert!(w.scans.wait(WAIT));
+    }
+
+    #[test]
+    fn failed_and_cancelled_scans_are_not_followed_by_one() {
+        let mut w = world();
+        w.location.volume = VolumeId("ejected".into());
+        w.scans.start(std::slice::from_ref(&w.location));
+        // Decided under the same lock that records the phase.
+        wait_for_phase(&w, ScanPhase::Failed);
+        assert!(w.scans.shared.book().enriching.is_empty(), "failed");
+
+        let gate = Arc::new(Gate(Mutex::new(false), std::sync::Condvar::new()));
+        let w = world_listing_with(gate.clone());
+        w.scans.start(std::slice::from_ref(&w.location));
+        w.scans.cancel(Some(LocationId(3)));
+        *gate.0.lock().unwrap() = true;
+        gate.1.notify_all();
+        wait_for("the end", || !w.scans.status()[0].phase.is_active());
+        assert!(w.scans.shared.book().enriching.is_empty(), "cancelled");
+        assert!(w.scans.wait(WAIT));
+    }
+
+    /// Holds every origin lookup until the test lets them go, so an enrich run stays running.
+    #[derive(Default)]
+    struct HeldOrigins {
+        /// (a lookup started, let go)
+        state: Mutex<(bool, bool)>,
+        changed: std::sync::Condvar,
+    }
+
+    impl HeldOrigins {
+        fn wait_until_running(&self) {
+            let state = self.state.lock().unwrap();
+            let (_state, timeout) = self
+                .changed
+                .wait_timeout_while(state, WAIT, |(started, _)| !*started)
+                .unwrap();
+            assert!(!timeout.timed_out(), "the enrich run didn't start");
+        }
+
+        fn let_go(&self) {
+            self.state.lock().unwrap().1 = true;
+            self.changed.notify_all();
+        }
+    }
+
+    impl DownloadOrigins for HeldOrigins {
+        fn origin_of(&self, _path: &std::path::Path) -> PortResult<Option<String>> {
+            let mut state = self.state.lock().unwrap();
+            state.0 = true;
+            self.changed.notify_all();
+            while !state.1 {
+                state = self.changed.wait(state).unwrap();
+            }
+            Ok(None)
+        }
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods)] // test fixture
+    fn a_location_has_one_enrich_run_at_a_time_and_another_after_it_if_needed() {
+        let origins = Arc::new(HeldOrigins::default());
+        let w = world_with(Arc::new(NativeDirectories), origins.clone(), 0);
+        w.scans.start(std::slice::from_ref(&w.location));
+        origins.wait_until_running();
+        // Changed after the run read it: what it learned about a.txt isn't stored.
+        std::fs::write(w.root.join("a.txt"), "changed").unwrap();
+        w.scans.start(std::slice::from_ref(&w.location));
+        wait_for_phase(&w, ScanPhase::Done);
+        {
+            let book = w.scans.shared.book();
+            assert_eq!(book.enriching.len(), 1, "no second run beside it");
+            assert!(book.enriching.values().all(|run| run.again));
+        }
+        origins.let_go();
+        wait_for("the run after it", || to_enrich(&w) == 0);
+        assert!(w.scans.wait(WAIT));
+    }
+
+    #[test]
+    fn switching_a_location_off_or_removing_it_cancels_its_enrich_run() {
+        for remove in [false, true] {
+            let origins = Arc::new(HeldOrigins::default());
+            let w = world_with(Arc::new(NativeDirectories), origins.clone(), BATCH);
+            w.scans.start(std::slice::from_ref(&w.location));
+            origins.wait_until_running();
+            if remove {
+                w.scans.forget(LocationId(3));
+            } else {
+                w.scans.cancel(Some(LocationId(3)));
+            }
+            origins.let_go();
+            wait_for("the run's end", || {
+                w.scans.shared.book().enriching.is_empty()
+            });
+            assert!(w.scans.wait(WAIT));
+            // It stops between batches: a.txt, b.txt and the more-*.txt files, less one batch.
+            assert_eq!(to_enrich(&w), 2, "remove: {remove}");
+        }
     }
 }
